@@ -1,7 +1,6 @@
 -- Copyright (C) 2008 Mark Wong
 CREATE OR REPLACE FUNCTION pg_proctab(
-		IN pid INTEGER,
-		OUT pid INTEGER,
+		INOUT pid INTEGER,
 		OUT comm VARCHAR,
 		OUT state CHAR,
 		OUT ppid INTEGER,
