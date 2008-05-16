@@ -1,0 +1,15 @@
+Currently only testing Linux, but support for other platforms will be added.
+
+Install
+-------
+make
+make install
+psql -f pg_proctab.sql
+
+Example
+-------
+SELECT procpid
+FROM pg_stat_activity;
+
+SELECT *
+FROM pg_proctab(12345);

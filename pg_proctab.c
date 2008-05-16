@@ -37,6 +37,7 @@ PG_MODULE_MAGIC;
 		length = q - p; \
 		strncpy(value, p, length); \
 		value[length] = '\0'; \
+elog(WARNING, msg ": '%s'", value); \
 		p = q + 1;
 
 Datum pg_proctab(PG_FUNCTION_ARGS);
@@ -57,7 +58,7 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 	struct statfs sb;
 	int fd;
 	int len;
-	char buffer[4096];
+	char buffer[512];
 	char *p;
 	char *q;
 
@@ -75,9 +76,9 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 	{
 		MemoryContext oldcontext;
 
-		values = (char **) palloc(35 * sizeof(char *));
+		values = (char **) palloc(34 * sizeof(char *));
 		values[i_pid] = (char *) palloc((INTEGER_LEN + 1) * sizeof(char));
-		values[i_comm] = (char *) palloc(128 * sizeof(char));
+		values[i_comm] = (char *) palloc(1024 * sizeof(char));
 		values[i_state] = (char *) palloc(2 * sizeof(char));
 		values[i_ppid] = (char *) palloc((INTEGER_LEN + 1) * sizeof(char));
 		values[i_pgrp] = (char *) palloc((INTEGER_LEN + 1) * sizeof(char));
@@ -177,8 +178,10 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 			SRF_RETURN_DONE(funcctx);
 		}
 		len = read(fd, buffer, sizeof(buffer) - 1);
+elog(WARNING, "len = %d", len);
 		close(fd);
 		buffer[len] = '\0';
+elog(WARNING, "buffer = %s", buffer);
 
 		p = buffer;
 
@@ -195,11 +198,13 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		length = q - p;
 		strncpy(values[i_comm], p, length);
 		values[i_comm][length] = '\0';
+elog(WARNING, "comm: '%s'", values[i_comm]);
 		p = q + 2;
 
 		/* state */
 		values[i_state][0] = *p;
 		values[i_state][1] = '\0';
+elog(WARNING, "state: '%s'", values[i_state]);
 		p = p + 2;
 
 		/* ppid */
@@ -316,6 +321,10 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		/* delayacct_blkio_ticks */
 		GET_NEXT_VALUE(p, q, values[i_delayacct_blkio_ticks], length,
 				"delayacct_blkio_ticks not found");
+
+for (fd = 0; fd < 34; fd++) {
+elog(WARNING, "OUT: %d '%s'", fd, values[fd]);
+}
 
 		/* build a tuple */
 		tuple = BuildTupleFromCStrings(attinmeta, values);
