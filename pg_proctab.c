@@ -37,7 +37,6 @@ PG_MODULE_MAGIC;
 		length = q - p; \
 		strncpy(value, p, length); \
 		value[length] = '\0'; \
-elog(WARNING, msg ": '%s'", value); \
 		p = q + 1;
 
 Datum pg_proctab(PG_FUNCTION_ARGS);
