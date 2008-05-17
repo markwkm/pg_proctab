@@ -318,10 +318,6 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		GET_NEXT_VALUE(p, q, values[i_delayacct_blkio_ticks], length,
 				"delayacct_blkio_ticks not found");
 
-for (fd = 0; fd < 34; fd++) {
-elog(WARNING, "OUT: %d '%s'", fd, values[fd]);
-}
-
 		/* build a tuple */
 		tuple = BuildTupleFromCStrings(attinmeta, values);
 
