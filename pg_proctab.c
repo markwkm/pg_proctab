@@ -174,14 +174,12 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		fd = open(buffer, O_RDONLY);
 		if (fd == -1)
 		{
-			elog(WARNING, "%d/stat not found", pid);
+			elog(ERROR, "%d/stat not found", pid);
 			SRF_RETURN_DONE(funcctx);
 		}
 		len = read(fd, buffer, sizeof(buffer) - 1);
-elog(WARNING, "len = %d", len);
 		close(fd);
 		buffer[len] = '\0';
-elog(WARNING, "buffer = %s", buffer);
 
 		p = buffer;
 
@@ -198,13 +196,11 @@ elog(WARNING, "buffer = %s", buffer);
 		length = q - p;
 		strncpy(values[i_comm], p, length);
 		values[i_comm][length] = '\0';
-elog(WARNING, "comm: '%s'", values[i_comm]);
 		p = q + 2;
 
 		/* state */
 		values[i_state][0] = *p;
 		values[i_state][1] = '\0';
-elog(WARNING, "state: '%s'", values[i_state]);
 		p = p + 2;
 
 		/* ppid */
