@@ -28,7 +28,6 @@ CREATE OR REPLACE FUNCTION pg_proctab(
 		OUT blocked BIGINT,
 		OUT sigignore BIGINT,
 		OUT sigcatch BIGINT,
-		OUT wchan BIGINT,
 		OUT exit_signal INTEGER,
 		OUT processor INTEGER,
 		OUT rt_priority BIGINT,

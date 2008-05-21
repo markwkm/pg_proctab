@@ -69,7 +69,7 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 			i_cmajflt, i_utime, i_stime, i_cutime, i_cstime, i_priority,
 			i_nice, i_num_threads, i_itrealvalue, i_starttime, i_vsize,
 			i_rss, i_signal, i_blocked, i_sigignore, i_sigcatch,
-			i_wchan, i_exit_signal, i_processor, i_rt_priority, i_policy,
+			i_exit_signal, i_processor, i_rt_priority, i_policy,
 			i_delayacct_blkio_ticks};
 
 	/* stuff done only on the first call of the function */
@@ -216,7 +216,6 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		values[i_blocked] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
 		values[i_sigignore] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
 		values[i_sigcatch] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
-		values[i_wchan] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
 		values[i_exit_signal] =
 				(char *) palloc((INTEGER_LEN + 1) * sizeof(char));
 		values[i_processor] = (char *) palloc((INTEGER_LEN + 1) * sizeof(char));
@@ -336,10 +335,8 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		/* sigcatch */
 		GET_NEXT_VALUE(p, q, values[i_sigcatch], length, "sigcatch not found");
 
-		/* wchan */
-		GET_NEXT_VALUE(p, q, values[i_wchan], length, "wchan not found");
-
 		++p;
+		p = skip_token(p);			/* skip wchan */
 		p = skip_token(p);			/* skip nswap */
 		p = skip_token(p);			/* skip cnswap */
 		++p;
