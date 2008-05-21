@@ -12,6 +12,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/param.h>
+#include <executor/spi.h>
 
 #if 0
 #include <linux/proc_fs.h>
@@ -27,6 +28,10 @@ PG_MODULE_MAGIC;
 
 #define INTEGER_LEN 10
 #define BIGINT_LEN 20
+
+#define GET_PIDS \
+		"SELECT procpid " \
+		"FROM pg_stat_activity"
 
 #define GET_NEXT_VALUE(p, q, value, length, msg) \
 		if ((q = strchr(p, ' ')) == NULL) \
@@ -46,8 +51,6 @@ PG_FUNCTION_INFO_V1(pg_proctab);
 
 Datum pg_proctab(PG_FUNCTION_ARGS)
 {
-	int32 pid = PG_GETARG_INT32(0);
-
 	FuncCallContext *funcctx;
 	int call_cntr;
 	int max_calls;
@@ -57,7 +60,7 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 	struct statfs sb;
 	int fd;
 	int len;
-	char buffer[512];
+	char buffer[4096];
 	char *p;
 	char *q;
 
@@ -68,12 +71,119 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 			i_rss, i_signal, i_blocked, i_sigignore, i_sigcatch,
 			i_wchan, i_exit_signal, i_processor, i_rt_priority, i_policy,
 			i_delayacct_blkio_ticks};
-	char **values = NULL;
 
 	/* stuff done only on the first call of the function */
 	if (SRF_IS_FIRSTCALL())
 	{
 		MemoryContext oldcontext;
+
+		int ret;
+
+		/* create a function context for cross-call persistence */
+		funcctx = SRF_FIRSTCALL_INIT();
+
+		/* switch to memory context appropriate for multiple function calls */
+		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+
+		/* Build a tuple descriptor for our result type */
+		if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
+			ereport(ERROR,
+					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					errmsg("function returning record called in context "
+							"that cannot accept type record")));
+
+		/*
+		 * generate attribute metadata needed later to produce tuples from raw
+		 * C strings
+		 */
+		attinmeta = TupleDescGetAttInMetadata(tupdesc);
+		funcctx->attinmeta = attinmeta;
+
+		/* Get pid of all client connections. */
+
+		SPI_connect();
+
+		ret = SPI_exec(GET_PIDS, 0);
+		if (ret == SPI_OK_SELECT)
+		{
+			int32 *ppid;
+
+			int i;
+			TupleDesc tupdesc;
+			SPITupleTable *tuptable;
+			HeapTuple tuple;
+
+			/* total number of tuples to be returned */
+			funcctx->max_calls = SPI_processed;
+			funcctx->user_fctx = palloc(sizeof(int32) * funcctx->max_calls);
+			ppid = (int32 *) funcctx->user_fctx;
+
+			tupdesc = SPI_tuptable->tupdesc;
+			tuptable = SPI_tuptable;
+
+			for (i = 0; i < funcctx->max_calls; i++)
+			{
+				tuple = tuptable->vals[i];
+				ppid[i] = atoi(SPI_getvalue(tuple, tupdesc, 1));
+			}
+		}
+		else
+		{
+			/* total number of tuples to be returned */
+			funcctx->max_calls = 0;
+			elog(WARNING, "unable to get procpids from pg_stat_activity");
+		}
+
+		SPI_finish();
+
+		MemoryContextSwitchTo(oldcontext);
+	}
+
+	/* stuff done on every call of the function */
+	funcctx = SRF_PERCALL_SETUP();
+
+	call_cntr = funcctx->call_cntr;
+	max_calls = funcctx->max_calls;
+	attinmeta = funcctx->attinmeta;
+
+	if (call_cntr < max_calls) /* do when there is more left to send */
+	{
+		HeapTuple tuple;
+		Datum result;
+
+		int32 *ppid;
+		int32 pid;
+		int length;
+
+		char **values = NULL;
+
+		/* Check if /proc is mounted. */
+		if (statfs(PROCFS, &sb) < 0 || sb.f_type != PROC_SUPER_MAGIC)
+		{
+			elog(ERROR, "proc filesystem not mounted on " PROCFS "\n");
+			SRF_RETURN_DONE(funcctx);
+		} 
+		chdir(PROCFS);
+
+		/* Read the stat info for the pid. */
+
+		ppid = (int32 *) funcctx->user_fctx;
+		pid = ppid[call_cntr];
+
+		/*
+		 * Sanity check, make sure we read the pid information that we're
+		 * asking for.
+		 */ 
+		sprintf(buffer, "%d/stat", pid);
+		fd = open(buffer, O_RDONLY);
+		if (fd == -1)
+		{
+			elog(ERROR, "%d/stat not found", pid);
+			SRF_RETURN_DONE(funcctx);
+		}
+		len = read(fd, buffer, sizeof(buffer) - 1);
+		close(fd);
+		buffer[len] = '\0';
 
 		values = (char **) palloc(34 * sizeof(char *));
 		values[i_pid] = (char *) palloc((INTEGER_LEN + 1) * sizeof(char));
@@ -115,70 +225,6 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		values[i_policy] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
 		values[i_delayacct_blkio_ticks] =
 				(char *) palloc((BIGINT_LEN + 1) * sizeof(char));
-
-		/* create a function context for cross-call persistence */
-		funcctx = SRF_FIRSTCALL_INIT();
-
-		/* switch to memory context appropriate for multiple function calls */
-		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
-
-		/* total number of tuples to be returned */
-		funcctx->max_calls = 1;
-
-		/* Build a tuple descriptor for our result type */
-		if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
-			ereport(ERROR,
-					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					errmsg("function returning record called in context "
-							"that cannot accept type record")));
-
-		/*
-		 * generate attribute metadata needed later to produce tuples from raw
-		 * C strings
-		 */
-		attinmeta = TupleDescGetAttInMetadata(tupdesc);
-		funcctx->attinmeta = attinmeta;
-
-		MemoryContextSwitchTo(oldcontext);
-	}
-
-	/* stuff done on every call of the function */
-	funcctx = SRF_PERCALL_SETUP();
-
-	call_cntr = funcctx->call_cntr;
-	max_calls = funcctx->max_calls;
-	attinmeta = funcctx->attinmeta;
-
-	if (call_cntr < max_calls) /* do when there is more left to send */
-	{
-		HeapTuple tuple;
-		Datum result;
-		int length;
-
-		/* Check if /proc is mounted. */
-		if (statfs(PROCFS, &sb) < 0 || sb.f_type != PROC_SUPER_MAGIC)
-		{
-			elog(ERROR, "proc filesystem not mounted on " PROCFS "\n");
-			SRF_RETURN_DONE(funcctx);
-		} 
-		chdir(PROCFS);
-
-		/* Read the stat info for the pid. */
-
-		/*
-		 * Sanity check, make sure we read the pid information that we're
-		 * asking for.
-		 */ 
-		sprintf(buffer, "%d/stat", pid);
-		fd = open(buffer, O_RDONLY);
-		if (fd == -1)
-		{
-			elog(ERROR, "%d/stat not found", pid);
-			SRF_RETURN_DONE(funcctx);
-		}
-		len = read(fd, buffer, sizeof(buffer) - 1);
-		close(fd);
-		buffer[len] = '\0';
 
 		p = buffer;
 

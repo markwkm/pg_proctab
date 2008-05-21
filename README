@@ -6,10 +6,14 @@ make
 make install
 psql -f pg_proctab.sql
 
-Example
--------
+Examples
+--------
 SELECT procpid
 FROM pg_stat_activity;
 
 SELECT *
-FROM pg_proctab(12345);
+FROM pg_proctab();
+
+SELECT *
+FROM pg_stat_activity, pg_proctab()
+WHERE procpid = pid;
