@@ -120,7 +120,9 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 			funcctx->max_calls = SPI_processed;
 			elog(DEBUG5, "pg_proctab: %d process(es) in pg_stat_activity.",
 					funcctx->max_calls);
-			funcctx->user_fctx = palloc(sizeof(int32) * funcctx->max_calls);
+			funcctx->user_fctx = MemoryContextAlloc(
+					funcctx->multi_call_memory_ctx, sizeof(int32) *
+					funcctx->max_calls);
 			ppid = (int32 *) funcctx->user_fctx;
 
 			tupdesc = SPI_tuptable->tupdesc;
