@@ -72,6 +72,8 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 			i_exit_signal, i_processor, i_rt_priority, i_policy,
 			i_delayacct_blkio_ticks};
 
+	elog(DEBUG5, "pg_proctab: Entering stored function.");
+
 	/* stuff done only on the first call of the function */
 	if (SRF_IS_FIRSTCALL())
 	{
@@ -102,6 +104,7 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		/* Get pid of all client connections. */
 
 		SPI_connect();
+		elog(DEBUG5, "pg_proctab: SPI connected.");
 
 		ret = SPI_exec(GET_PIDS, 0);
 		if (ret == SPI_OK_SELECT)
@@ -115,6 +118,8 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 
 			/* total number of tuples to be returned */
 			funcctx->max_calls = SPI_processed;
+			elog(DEBUG5, "pg_proctab: %d process(es) in pg_stat_activity.",
+					funcctx->max_calls);
 			funcctx->user_fctx = palloc(sizeof(int32) * funcctx->max_calls);
 			ppid = (int32 *) funcctx->user_fctx;
 
@@ -125,6 +130,7 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 			{
 				tuple = tuptable->vals[i];
 				ppid[i] = atoi(SPI_getvalue(tuple, tupdesc, 1));
+				elog(DEBUG5, "pg_proctab: saving pid %d.", ppid[i]);
 			}
 		}
 		else
@@ -169,6 +175,8 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 
 		ppid = (int32 *) funcctx->user_fctx;
 		pid = ppid[call_cntr];
+		elog(DEBUG5, "pg_proctab: accessing process table for pid[%d] %d.",
+				call_cntr, pid);
 
 		/*
 		 * Sanity check, make sure we read the pid information that we're
@@ -184,6 +192,7 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		len = read(fd, buffer, sizeof(buffer) - 1);
 		close(fd);
 		buffer[len] = '\0';
+		elog(DEBUG5, "pg_proctab: %s", buffer);
 
 		values = (char **) palloc(34 * sizeof(char *));
 		values[i_pid] = (char *) palloc((INTEGER_LEN + 1) * sizeof(char));
