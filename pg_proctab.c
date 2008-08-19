@@ -1,5 +1,9 @@
 /*
  * Copyright (C) 2008 Mark Wong
+ *
+ * For details on the Linux process table, see the description of
+ * /proc/PID/stat in Documentation/filesystems/proc.txt in the Linux source
+ * code.
  */
 
 #include "postgres.h"
@@ -240,6 +244,7 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 
 		/* pid */
 		GET_NEXT_VALUE(p, q, values[i_pid], length, "pid not found");
+		elog(DEBUG5, "pg_proctab: pid = %s", values[i_pid]);
 
 		/* comm */
 		++p;
@@ -252,78 +257,101 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		strncpy(values[i_comm], p, length);
 		values[i_comm][length] = '\0';
 		p = q + 2;
+		elog(DEBUG5, "pg_proctab: comm = %s", values[i_comm]);
 
 		/* state */
 		values[i_state][0] = *p;
 		values[i_state][1] = '\0';
 		p = p + 2;
+		elog(DEBUG5, "pg_proctab: state = %s", values[i_state]);
 
 		/* ppid */
 		GET_NEXT_VALUE(p, q, values[i_ppid], length, "ppid not found");
+		elog(DEBUG5, "pg_proctab: ppid = %s", values[i_ppid]);
 
 		/* pgrp */
 		GET_NEXT_VALUE(p, q, values[i_pgrp], length, "pgrp not found");
+		elog(DEBUG5, "pg_proctab: pgrp = %s", values[i_pgrp]);
 
 		/* session */
 		GET_NEXT_VALUE(p, q, values[i_session], length, "session not found");
+		elog(DEBUG5, "pg_proctab: session = %s", values[i_session]);
 
 		/* tty_nr */
 		GET_NEXT_VALUE(p, q, values[i_tty_nr], length, "tty_nr not found");
+		elog(DEBUG5, "pg_proctab: tty_nr = %s", values[i_tty_nr]);
 
 		/* tpgid */
 		GET_NEXT_VALUE(p, q, values[i_tpgid], length, "tpgid not found");
+		elog(DEBUG5, "pg_proctab: tpgid = %s", values[i_tpgid]);
 
 		/* flags */
 		GET_NEXT_VALUE(p, q, values[i_flags], length, "flags not found");
+		elog(DEBUG5, "pg_proctab: flags = %s", values[i_flags]);
 
 		/* minflt */
 		GET_NEXT_VALUE(p, q, values[i_minflt], length, "minflt not found");
+		elog(DEBUG5, "pg_proctab: minflt = %s", values[i_minflt]);
 
 		/* cminflt */
 		GET_NEXT_VALUE(p, q, values[i_cminflt], length, "cminflt not found");
+		elog(DEBUG5, "pg_proctab: cminflt = %s", values[i_cminflt]);
 
 		/* majflt */
 		GET_NEXT_VALUE(p, q, values[i_majflt], length, "majflt not found");
+		elog(DEBUG5, "pg_proctab: majflt = %s", values[i_majflt]);
 
 		/* cmajflt */
 		GET_NEXT_VALUE(p, q, values[i_cmajflt], length, "cmajflt not found");
+		elog(DEBUG5, "pg_proctab: cmajflt = %s", values[i_cmajflt]);
 
 		/* utime */
 		GET_NEXT_VALUE(p, q, values[i_utime], length, "utime not found");
+		elog(DEBUG5, "pg_proctab: utime = %s", values[i_utime]);
 
 		/* stime */
 		GET_NEXT_VALUE(p, q, values[i_stime], length, "stime not found");
+		elog(DEBUG5, "pg_proctab: stime = %s", values[i_stime]);
 
 		/* cutime */
 		GET_NEXT_VALUE(p, q, values[i_cutime], length, "cutime not found");
+		elog(DEBUG5, "pg_proctab: cutime = %s", values[i_cutime]);
 
 		/* cstime */
 		GET_NEXT_VALUE(p, q, values[i_cstime], length, "cstime not found");
+		elog(DEBUG5, "pg_proctab: cstime = %s", values[i_cstime]);
 
 		/* priority */
 		GET_NEXT_VALUE(p, q, values[i_priority], length, "priority not found");
+		elog(DEBUG5, "pg_proctab: priority = %s", values[i_priority]);
 
 		/* nice */
 		GET_NEXT_VALUE(p, q, values[i_nice], length, "nice not found");
+		elog(DEBUG5, "pg_proctab: nice = %s", values[i_nice]);
 
 		/* num_threads */
 		GET_NEXT_VALUE(p, q, values[i_num_threads], length,
 				"num_threads not found");
+		elog(DEBUG5, "pg_proctab: num_threads = %s", values[i_num_threads]);
 
 		/* itrealvalue */
 		GET_NEXT_VALUE(p, q, values[i_itrealvalue], length,
 				"itrealvalue not found");
+		elog(DEBUG5, "pg_proctab: itrealvalue = %s", values[i_itrealvalue]);
 
 		/* starttime */
 		GET_NEXT_VALUE(p, q, values[i_starttime], length,
 				"starttime not found");
+		elog(DEBUG5, "pg_proctab: starttime = %s", values[i_starttime]);
 
 		/* vsize */
 		GET_NEXT_VALUE(p, q, values[i_vsize], length, "vsize not found");
+		elog(DEBUG5, "pg_proctab: vsize = %s", values[i_vsize]);
 
 		/* rss */
 		GET_NEXT_VALUE(p, q, values[i_rss], length, "rss not found");
-
+		elog(DEBUG5, "pg_proctab: rss = %s", values[i_rss]);
+ 
 		++p;
 		p = skip_token(p);			/* skip rlim */
 		p = skip_token(p);			/* skip startcode */
@@ -335,16 +363,20 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 
 		/* signal */
 		GET_NEXT_VALUE(p, q, values[i_signal], length, "signal not found");
+		elog(DEBUG5, "pg_proctab: signal = %s", values[i_signal]);
 
 		/* blocked */
 		GET_NEXT_VALUE(p, q, values[i_blocked], length, "blocked not found");
+		elog(DEBUG5, "pg_proctab: blocked = %s", values[i_blocked]);
 
 		/* sigignore */
 		GET_NEXT_VALUE(p, q, values[i_sigignore], length,
 				"sigignore not found");
+		elog(DEBUG5, "pg_proctab: sigignore = %s", values[i_sigignore]);
 
 		/* sigcatch */
 		GET_NEXT_VALUE(p, q, values[i_sigcatch], length, "sigcatch not found");
+		elog(DEBUG5, "pg_proctab: sigcatch = %s", values[i_sigcatch]);
 
 		++p;
 		p = skip_token(p);			/* skip wchan */
@@ -355,21 +387,27 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		/* exit_signal */
 		GET_NEXT_VALUE(p, q, values[i_exit_signal], length,
 				"exit_signal not found");
+		elog(DEBUG5, "pg_proctab: exit_signal = %s", values[i_exit_signal]);
 
 		/* processor */
 		GET_NEXT_VALUE(p, q, values[i_processor], length,
 				"processor not found");
+		elog(DEBUG5, "pg_proctab: processor = %s", values[i_processor]);
 
 		/* rt_priority */
 		GET_NEXT_VALUE(p, q, values[i_rt_priority], length,
 				"rt_priority not found");
+		elog(DEBUG5, "pg_proctab: rt_priority = %s", values[i_rt_priority]);
 
 		/* policy */
 		GET_NEXT_VALUE(p, q, values[i_policy], length, "policy not found");
+		elog(DEBUG5, "pg_proctab: policy = %s", values[i_policy]);
 
 		/* delayacct_blkio_ticks */
 		GET_NEXT_VALUE(p, q, values[i_delayacct_blkio_ticks], length,
 				"delayacct_blkio_ticks not found");
+		elog(DEBUG5, "pg_proctab: delayacct_blkio_ticks = %s",
+				values[i_delayacct_blkio_ticks]);
 
 		/* build a tuple */
 		tuple = BuildTupleFromCStrings(attinmeta, values);
