@@ -72,8 +72,7 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 			i_tty_nr, i_tpgid, i_flags, i_minflt, i_cminflt, i_majflt,
 			i_cmajflt, i_utime, i_stime, i_cutime, i_cstime, i_priority,
 			i_nice, i_num_threads, i_itrealvalue, i_starttime, i_vsize,
-			i_rss, i_signal, i_blocked, i_sigignore, i_sigcatch,
-			i_exit_signal, i_processor, i_rt_priority, i_policy,
+			i_rss, i_exit_signal, i_processor, i_rt_priority, i_policy,
 			i_delayacct_blkio_ticks};
 
 	elog(DEBUG5, "pg_proctab: Entering stored function.");
@@ -200,7 +199,7 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		buffer[len] = '\0';
 		elog(DEBUG5, "pg_proctab: %s", buffer);
 
-		values = (char **) palloc(34 * sizeof(char *));
+		values = (char **) palloc(30 * sizeof(char *));
 		values[i_pid] = (char *) palloc((INTEGER_LEN + 1) * sizeof(char));
 		values[i_comm] = (char *) palloc(1024 * sizeof(char));
 		values[i_state] = (char *) palloc(2 * sizeof(char));
@@ -227,10 +226,6 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		values[i_starttime] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
 		values[i_vsize] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
 		values[i_rss] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
-		values[i_signal] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
-		values[i_blocked] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
-		values[i_sigignore] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
-		values[i_sigcatch] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
 		values[i_exit_signal] =
 				(char *) palloc((INTEGER_LEN + 1) * sizeof(char));
 		values[i_processor] = (char *) palloc((INTEGER_LEN + 1) * sizeof(char));
@@ -355,37 +350,20 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		/* rss */
 		GET_NEXT_VALUE(p, q, values[i_rss], length, "rss not found", ' ');
 		elog(DEBUG5, "pg_proctab: rss = %s", values[i_rss]);
- 
+
 		p = skip_token(p);			/* skip rlim */
 		p = skip_token(p);			/* skip startcode */
 		p = skip_token(p);			/* skip endcode */
 		p = skip_token(p);			/* skip startstack */
 		p = skip_token(p);			/* skip kstkesp */
 		p = skip_token(p);			/* skip kstkeip */
-		++p;
-
-		/* signal */
-		GET_NEXT_VALUE(p, q, values[i_signal], length, "signal not found", ' ');
-		elog(DEBUG5, "pg_proctab: signal = %s", values[i_signal]);
-
-		/* blocked */
-		GET_NEXT_VALUE(p, q, values[i_blocked], length, "blocked not found",
-				' ');
-		elog(DEBUG5, "pg_proctab: blocked = %s", values[i_blocked]);
-
-		/* sigignore */
-		GET_NEXT_VALUE(p, q, values[i_sigignore], length,
-				"sigignore not found", ' ');
-		elog(DEBUG5, "pg_proctab: sigignore = %s", values[i_sigignore]);
-
-		/* sigcatch */
-		GET_NEXT_VALUE(p, q, values[i_sigcatch], length, "sigcatch not found",
-				' ');
-		elog(DEBUG5, "pg_proctab: sigcatch = %s", values[i_sigcatch]);
-
+		p = skip_token(p);			/* skip signal (obsolete) */
+		p = skip_token(p);			/* skip blocked (obsolete) */
+		p = skip_token(p);			/* skip sigignore (obsolete) */
+		p = skip_token(p);			/* skip sigcatch (obsolete) */
 		p = skip_token(p);			/* skip wchan */
-		p = skip_token(p);			/* skip nswap */
-		p = skip_token(p);			/* skip cnswap */
+		p = skip_token(p);			/* skip nswap (place holder) */
+		p = skip_token(p);			/* skip cnswap (place holder) */
 		++p;
 
 		/* exit_signal */
