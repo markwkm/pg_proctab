@@ -356,7 +356,6 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		GET_NEXT_VALUE(p, q, values[i_rss], length, "rss not found", ' ');
 		elog(DEBUG5, "pg_proctab: rss = %s", values[i_rss]);
  
-		++p;
 		p = skip_token(p);			/* skip rlim */
 		p = skip_token(p);			/* skip startcode */
 		p = skip_token(p);			/* skip endcode */
@@ -384,7 +383,6 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 				' ');
 		elog(DEBUG5, "pg_proctab: sigcatch = %s", values[i_sigcatch]);
 
-		++p;
 		p = skip_token(p);			/* skip wchan */
 		p = skip_token(p);			/* skip nswap */
 		p = skip_token(p);			/* skip cnswap */
