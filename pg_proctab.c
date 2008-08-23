@@ -1,9 +1,5 @@
 /*
  * Copyright (C) 2008 Mark Wong
- *
- * For details on the Linux process table, see the description of
- * /proc/PID/stat in Documentation/filesystems/proc.txt in the Linux source
- * code.
  */
 
 #include "postgres.h"
@@ -12,11 +8,19 @@
 #include "funcapi.h"
 #include <sys/vfs.h>
 #include <unistd.h>
-#include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/param.h>
 #include <executor/spi.h>
+
+#ifdef __linux__
+#include <ctype.h>
+
+/*
+ * For details on the Linux process table, see the description of
+ * /proc/PID/stat in Documentation/filesystems/proc.txt in the Linux source
+ * code.
+ */
 
 #if 0
 #include <linux/proc_fs.h>
@@ -24,18 +28,7 @@
 #define PROC_SUPER_MAGIC 0x9fa0
 #endif
 
-#ifdef PG_MODULE_MAGIC
-PG_MODULE_MAGIC;
-#endif
-
 #define PROCFS "/proc"
-
-#define INTEGER_LEN 10
-#define BIGINT_LEN 20
-
-#define GET_PIDS \
-		"SELECT procpid " \
-		"FROM pg_stat_activity"
 
 #define GET_NEXT_VALUE(p, q, value, length, msg, delim) \
 		if ((q = strchr(p, delim)) == NULL) \
@@ -48,8 +41,31 @@ PG_MODULE_MAGIC;
 		value[length] = '\0'; \
 		p = q + 1;
 
-Datum pg_proctab(PG_FUNCTION_ARGS);
 static inline char *skip_token(const char *);
+
+static inline char *
+skip_token(const char *p)
+{
+	while (isspace(*p))
+		p++;
+	while (*p && !isspace(*p))
+		p++;
+	return (char *) p;
+}
+#endif /* __linux__ */
+
+#ifdef PG_MODULE_MAGIC
+PG_MODULE_MAGIC;
+#endif
+
+#define INTEGER_LEN 10
+#define BIGINT_LEN 20
+
+#define GET_PIDS \
+		"SELECT procpid " \
+		"FROM pg_stat_activity"
+
+Datum pg_proctab(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(pg_proctab);
 
@@ -61,12 +77,14 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 	TupleDesc tupdesc;
 	AttInMetadata *attinmeta;
 
+#ifdef __linux__
 	struct statfs sb;
 	int fd;
 	int len;
 	char buffer[4096];
 	char *p;
 	char *q;
+#endif /* __linux__ */
 
 	enum proctab {i_pid, i_comm, i_state, i_ppid, i_pgrp, i_session,
 			i_tty_nr, i_tpgid, i_flags, i_minflt, i_cminflt, i_majflt,
@@ -168,6 +186,7 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 
 		char **values = NULL;
 
+#ifdef __linux__
 		/* Check if /proc is mounted. */
 		if (statfs(PROCFS, &sb) < 0 || sb.f_type != PROC_SUPER_MAGIC)
 		{
@@ -404,6 +423,7 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		}
 		elog(DEBUG5, "pg_proctab: delayacct_blkio_ticks = %s",
 				values[i_delayacct_blkio_ticks]);
+#endif /* __linux__ */
 
 		/* build a tuple */
 		tuple = BuildTupleFromCStrings(attinmeta, values);
@@ -417,14 +437,4 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 	{
 		SRF_RETURN_DONE(funcctx);
 	}
-}
-
-static inline char *
-skip_token(const char *p)
-{
-	while (isspace(*p))
-		p++;
-	while (*p && !isspace(*p))
-		p++;
-	return (char *) p;
 }
