@@ -5,6 +5,7 @@ Install
 make
 make install
 psql -f pg_proctab.sql
+psql -f pg_loadavg.sql
 
 Examples
 --------
