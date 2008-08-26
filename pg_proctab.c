@@ -193,7 +193,6 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 			elog(ERROR, "proc filesystem not mounted on " PROCFS "\n");
 			SRF_RETURN_DONE(funcctx);
 		} 
-		chdir(PROCFS);
 
 		/* Read the stat info for the pid. */
 
@@ -206,7 +205,7 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		 * Sanity check, make sure we read the pid information that we're
 		 * asking for.
 		 */ 
-		sprintf(buffer, "%d/stat", pid);
+		sprintf(buffer, "%s/%d/stat", PROCFS, pid);
 		fd = open(buffer, O_RDONLY);
 		if (fd == -1)
 		{

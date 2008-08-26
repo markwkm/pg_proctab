@@ -117,13 +117,11 @@ Datum pg_cputime(PG_FUNCTION_ARGS)
 
 		char **values = NULL;
 
-		chdir(PROCFS);
-
 		/*
 		 * Sanity check, make sure we read the pid information that we're
 		 * asking for.
 		 */ 
-		sprintf(buffer, "stat");
+		sprintf(buffer, "%s/stat", PROCFS);
 		fd = open(buffer, O_RDONLY);
 		if (fd == -1)
 		{

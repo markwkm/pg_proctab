@@ -117,13 +117,11 @@ Datum pg_loadavg(PG_FUNCTION_ARGS)
 
 		char **values = NULL;
 
-		chdir(PROCFS);
-
 		/*
 		 * Sanity check, make sure we read the pid information that we're
 		 * asking for.
 		 */ 
-		sprintf(buffer, "loadavg");
+		sprintf(buffer, "%s/loadavg", PROCFS);
 		fd = open(buffer, O_RDONLY);
 		if (fd == -1)
 		{
