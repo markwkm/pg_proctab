@@ -61,6 +61,8 @@ PG_MODULE_MAGIC;
 #define INTEGER_LEN 10
 #define BIGINT_LEN 20
 
+#define FULLCOMM_LEN 1024
+
 #define GET_PIDS \
 		"SELECT procpid " \
 		"FROM pg_stat_activity"
@@ -86,12 +88,12 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 	char *q;
 #endif /* __linux__ */
 
-	enum proctab {i_pid, i_comm, i_state, i_ppid, i_pgrp, i_session,
-			i_tty_nr, i_tpgid, i_flags, i_minflt, i_cminflt, i_majflt,
-			i_cmajflt, i_utime, i_stime, i_cutime, i_cstime, i_priority,
-			i_nice, i_num_threads, i_itrealvalue, i_starttime, i_vsize,
-			i_rss, i_exit_signal, i_processor, i_rt_priority, i_policy,
-			i_delayacct_blkio_ticks};
+	enum proctab {i_pid, i_comm, i_fullcomm, i_state, i_ppid, i_pgrp,
+			i_session, i_tty_nr, i_tpgid, i_flags, i_minflt, i_cminflt,
+			i_majflt, i_cmajflt, i_utime, i_stime, i_cutime, i_cstime,
+			i_priority, i_nice, i_num_threads, i_itrealvalue, i_starttime,
+			i_vsize, i_rss, i_exit_signal, i_processor, i_rt_priority,
+			i_policy, i_delayacct_blkio_ticks};
 
 	elog(DEBUG5, "pg_proctab: Entering stored function.");
 
@@ -186,37 +188,6 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 
 		char **values = NULL;
 
-#ifdef __linux__
-		/* Check if /proc is mounted. */
-		if (statfs(PROCFS, &sb) < 0 || sb.f_type != PROC_SUPER_MAGIC)
-		{
-			elog(ERROR, "proc filesystem not mounted on " PROCFS "\n");
-			SRF_RETURN_DONE(funcctx);
-		} 
-
-		/* Read the stat info for the pid. */
-
-		ppid = (int32 *) funcctx->user_fctx;
-		pid = ppid[call_cntr];
-		elog(DEBUG5, "pg_proctab: accessing process table for pid[%d] %d.",
-				call_cntr, pid);
-
-		/*
-		 * Sanity check, make sure we read the pid information that we're
-		 * asking for.
-		 */ 
-		sprintf(buffer, "%s/%d/stat", PROCFS, pid);
-		fd = open(buffer, O_RDONLY);
-		if (fd == -1)
-		{
-			elog(ERROR, "'%s' not found", buffer);
-			SRF_RETURN_DONE(funcctx);
-		}
-		len = read(fd, buffer, sizeof(buffer) - 1);
-		close(fd);
-		buffer[len] = '\0';
-		elog(DEBUG5, "pg_proctab: %s", buffer);
-
 		values = (char **) palloc(30 * sizeof(char *));
 		values[i_pid] = (char *) palloc((INTEGER_LEN + 1) * sizeof(char));
 		values[i_comm] = (char *) palloc(1024 * sizeof(char));
@@ -252,6 +223,55 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		values[i_policy] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
 		values[i_delayacct_blkio_ticks] =
 				(char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+
+#ifdef __linux__
+		/* Check if /proc is mounted. */
+		if (statfs(PROCFS, &sb) < 0 || sb.f_type != PROC_SUPER_MAGIC)
+		{
+			elog(ERROR, "proc filesystem not mounted on " PROCFS "\n");
+			SRF_RETURN_DONE(funcctx);
+		} 
+		chdir(PROCFS);
+
+		/* Read the stat info for the pid. */
+
+		ppid = (int32 *) funcctx->user_fctx;
+		pid = ppid[call_cntr];
+		elog(DEBUG5, "pg_proctab: accessing process table for pid[%d] %d.",
+				call_cntr, pid);
+
+		/*
+		 * Sanity check, make sure we read the pid information that we're
+		 * asking for.
+		 */ 
+		sprintf(buffer, "%s/%d/cmdline", PROCFS, pid);
+		fd = open(buffer, O_RDONLY);
+		if (fd == -1)
+		{
+			elog(ERROR, "'%s' not found", buffer);
+			values[i_fullcomm] = NULL;
+		}
+		else
+		{
+			values[i_fullcomm] =
+					(char *) palloc((FULLCOMM_LEN + 1) * sizeof(char));
+			len = read(fd, values[i_fullcomm], FULLCOMM_LEN);
+			close(fd);
+			values[i_fullcomm][len] = '\0';
+		}
+		elog(DEBUG5, "pg_proctab: %s %s", buffer, values[i_fullcomm]);
+
+		sprintf(buffer, "%d/stat", pid);
+		fd = open(buffer, O_RDONLY);
+		if (fd == -1)
+		{
+			elog(ERROR, "%d/stat not found", pid);
+			SRF_RETURN_DONE(funcctx);
+		}
+		len = read(fd, buffer, sizeof(buffer) - 1);
+		close(fd);
+		buffer[len] = '\0';
+		elog(DEBUG5, "pg_proctab: %s", buffer);
 
 		p = buffer;
 

@@ -2,6 +2,7 @@
 CREATE OR REPLACE FUNCTION pg_proctab(
 		OUT pid INTEGER,
 		OUT comm VARCHAR,
+		OUT fullcomm VARCHAR,
 		OUT state CHAR,
 		OUT ppid INTEGER,
 		OUT pgrp INTEGER,
