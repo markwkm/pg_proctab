@@ -209,7 +209,7 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		fd = open(buffer, O_RDONLY);
 		if (fd == -1)
 		{
-			elog(ERROR, "%d/stat not found", pid);
+			elog(ERROR, "'%s' not found", buffer);
 			SRF_RETURN_DONE(funcctx);
 		}
 		len = read(fd, buffer, sizeof(buffer) - 1);

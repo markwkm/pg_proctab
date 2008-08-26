@@ -139,15 +139,11 @@ Datum pg_loadavg(PG_FUNCTION_ARGS)
 		values[i_last_pid] = (char *) palloc((INTEGER_LEN + 1) * sizeof(char));
 
 #ifdef __linux__
-		/*
-		 * Sanity check, make sure we read the pid information that we're
-		 * asking for.
-		 */ 
 		sprintf(buffer, "%s/loadavg", PROCFS);
 		fd = open(buffer, O_RDONLY);
 		if (fd == -1)
 		{
-			elog(ERROR, "loadavg not found");
+			elog(ERROR, "'%s' not found", buffer);
 			SRF_RETURN_DONE(funcctx);
 		}
 		len = read(fd, buffer, sizeof(buffer) - 1);

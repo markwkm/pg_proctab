@@ -151,15 +151,11 @@ Datum pg_memusage(PG_FUNCTION_ARGS)
 				(char *) palloc((BIGINT_LEN + 1) * sizeof(char));
 
 #ifdef __linux__
-		/*
-		 * Sanity check, make sure we read the pid information that we're
-		 * asking for.
-		 */ 
 		sprintf(buffer, "%s/meminfo", PROCFS);
 		fd = open(buffer, O_RDONLY);
 		if (fd == -1)
 		{
-			elog(ERROR, "loadavg not found");
+			elog(ERROR, "'%s' not found", buffer);
 			SRF_RETURN_DONE(funcctx);
 		}
 		len = read(fd, buffer, sizeof(buffer) - 1);
