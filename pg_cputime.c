@@ -15,20 +15,21 @@
 #include <sys/param.h>
 #include <executor/spi.h>
 
+#ifdef PG_MODULE_MAGIC
+PG_MODULE_MAGIC;
+#endif
+
+#define BIGINT_LEN 20
+#define INTEGER_LEN 10
+
+#ifdef __linux__
 #if 0
 #include <linux/proc_fs.h>
 #else
 #define PROC_SUPER_MAGIC 0x9fa0
 #endif
 
-#ifdef PG_MODULE_MAGIC
-PG_MODULE_MAGIC;
-#endif
-
 #define PROCFS "/proc"
-
-#define BIGINT_LEN 20
-#define INTEGER_LEN 10
 
 #define GET_NEXT_VALUE(p, q, value, length, msg, delim) \
 		if ((q = strchr(p, delim)) == NULL) \
@@ -41,8 +42,20 @@ PG_MODULE_MAGIC;
 		value[length] = '\0'; \
 		p = q + 1;
 
-Datum pg_cputime(PG_FUNCTION_ARGS);
 static inline char *skip_token(const char *);
+
+static inline char *
+skip_token(const char *p)
+{
+	while (isspace(*p))
+		p++;
+	while (*p && !isspace(*p))
+		p++;
+	return (char *) p;
+}
+#endif /* __linux__ */
+
+Datum pg_cputime(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(pg_cputime);
 
@@ -54,12 +67,14 @@ Datum pg_cputime(PG_FUNCTION_ARGS)
 	TupleDesc tupdesc;
 	AttInMetadata *attinmeta;
 
+#ifdef __linux__
 	struct statfs sb;
 	int fd;
 	int len;
 	char buffer[4096];
 	char *p;
 	char *q;
+#endif /* __linux__ */
 
 	enum loadavg {i_user, i_nice, i_system, i_idle, i_iowait};
 
@@ -117,6 +132,14 @@ Datum pg_cputime(PG_FUNCTION_ARGS)
 
 		char **values = NULL;
 
+		values = (char **) palloc(5 * sizeof(char *));
+		values[i_user] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+		values[i_nice] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+		values[i_system] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+		values[i_idle] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+		values[i_iowait] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+
+#ifdef __linux__
 		/*
 		 * Sanity check, make sure we read the pid information that we're
 		 * asking for.
@@ -132,13 +155,6 @@ Datum pg_cputime(PG_FUNCTION_ARGS)
 		close(fd);
 		buffer[len] = '\0';
 		elog(DEBUG5, "pg_cputime: %s", buffer);
-
-		values = (char **) palloc(5 * sizeof(char *));
-		values[i_user] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
-		values[i_nice] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
-		values[i_system] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
-		values[i_idle] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
-		values[i_iowait] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
 
 		p = buffer;
 
@@ -167,6 +183,7 @@ Datum pg_cputime(PG_FUNCTION_ARGS)
 		GET_NEXT_VALUE(p, q, values[i_iowait], length, "iowait not found",
 				' ');
 		elog(DEBUG5, "pg_cputime: iowait = %s", values[i_iowait]);
+#endif /* __linux__ */
 
 		/* build a tuple */
 		tuple = BuildTupleFromCStrings(attinmeta, values);
@@ -180,14 +197,4 @@ Datum pg_cputime(PG_FUNCTION_ARGS)
 	{
 		SRF_RETURN_DONE(funcctx);
 	}
-}
-
-static inline char *
-skip_token(const char *p)
-{
-	while (isspace(*p))
-		p++;
-	while (*p && !isspace(*p))
-		p++;
-	return (char *) p;
 }

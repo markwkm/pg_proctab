@@ -15,20 +15,21 @@
 #include <sys/param.h>
 #include <executor/spi.h>
 
+#ifdef PG_MODULE_MAGIC
+PG_MODULE_MAGIC;
+#endif
+
+#define BIGINT_LEN 20
+#define INTEGER_LEN 10
+
+#ifdef __linux__
+#define PROCFS "/proc"
+
 #if 0
 #include <linux/proc_fs.h>
 #else
 #define PROC_SUPER_MAGIC 0x9fa0
 #endif
-
-#ifdef PG_MODULE_MAGIC
-PG_MODULE_MAGIC;
-#endif
-
-#define PROCFS "/proc"
-
-#define BIGINT_LEN 20
-#define INTEGER_LEN 10
 
 #define GET_NEXT_VALUE(p, q, value, length, msg, delim) \
 		if ((q = strchr(p, delim)) == NULL) \
@@ -41,8 +42,21 @@ PG_MODULE_MAGIC;
 		value[length] = '\0'; \
 		p = q + 1;
 
-Datum pg_memusage(PG_FUNCTION_ARGS);
 static inline char *skip_token(const char *);
+
+static inline char *
+skip_token(const char *p)
+{
+	while (isspace(*p))
+		p++;
+	while (*p && !isspace(*p))
+		p++;
+	return (char *) p;
+}
+
+#endif /* __linux__ */
+
+Datum pg_memusage(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(pg_memusage);
 
@@ -54,12 +68,14 @@ Datum pg_memusage(PG_FUNCTION_ARGS)
 	TupleDesc tupdesc;
 	AttInMetadata *attinmeta;
 
+#ifdef __linux__
 	struct statfs sb;
 	int fd;
 	int len;
 	char buffer[4096];
 	char *p;
 	char *q;
+#endif /* __linux__ */
 
 	enum loadavg {i_memused, i_memfree, i_memshared, i_membuffers,
 			i_memcached, i_swapused, i_swapfree, i_swapcached};
@@ -122,6 +138,19 @@ Datum pg_memusage(PG_FUNCTION_ARGS)
 
 		char **values = NULL;
 
+		values = (char **) palloc(8 * sizeof(char *));
+		values[i_memused] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+		values[i_memfree] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+		values[i_memshared] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+		values[i_membuffers] =
+				(char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+		values[i_memcached] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+		values[i_swapused] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+		values[i_swapfree] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+		values[i_swapcached] =
+				(char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+
+#ifdef __linux__
 		/*
 		 * Sanity check, make sure we read the pid information that we're
 		 * asking for.
@@ -137,18 +166,6 @@ Datum pg_memusage(PG_FUNCTION_ARGS)
 		close(fd);
 		buffer[len] = '\0';
 		elog(DEBUG5, "pg_memusage: %s", buffer);
-
-		values = (char **) palloc(8 * sizeof(char *));
-		values[i_memused] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
-		values[i_memfree] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
-		values[i_memshared] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
-		values[i_membuffers] =
-				(char *) palloc((BIGINT_LEN + 1) * sizeof(char));
-		values[i_memcached] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
-		values[i_swapused] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
-		values[i_swapfree] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
-		values[i_swapcached] =
-				(char *) palloc((BIGINT_LEN + 1) * sizeof(char));
 
 		p = buffer - 1;
 
@@ -235,6 +252,7 @@ Datum pg_memusage(PG_FUNCTION_ARGS)
 			}
 			p = strchr(p, '\n');
 		}
+#endif /* __linux__ */
 
 		/* build a tuple */
 		tuple = BuildTupleFromCStrings(attinmeta, values);
@@ -248,14 +266,4 @@ Datum pg_memusage(PG_FUNCTION_ARGS)
 	{
 		SRF_RETURN_DONE(funcctx);
 	}
-}
-
-static inline char *
-skip_token(const char *p)
-{
-	while (isspace(*p))
-		p++;
-	while (*p && !isspace(*p))
-		p++;
-	return (char *) p;
 }
