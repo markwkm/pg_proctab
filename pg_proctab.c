@@ -204,8 +204,11 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		values[i_cminflt] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
 		values[i_majflt] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
 		values[i_cmajflt] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
-		values[i_utime] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
-		values[i_stime] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+
+		/* FIXME: Need to figure out correct length to hold a C double type. */
+		values[i_utime] = (char *) palloc(32 * sizeof(char));
+		values[i_stime] = (char *) palloc(32 * sizeof(char));
+
 		values[i_cutime] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
 		values[i_cstime] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
 		values[i_priority] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
@@ -370,10 +373,18 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 
 		/* utime */
 		GET_NEXT_VALUE(p, q, values[i_utime], length, "utime not found", ' ');
+#ifdef __linux__
+		sprintf(values[i_utime], "%f", (double) atol(values[i_utime]) /
+				(double) HZ);
+#endif /* __linux__ */
 		elog(DEBUG5, "pg_proctab: utime = %s", values[i_utime]);
 
 		/* stime */
 		GET_NEXT_VALUE(p, q, values[i_stime], length, "stime not found", ' ');
+#ifdef __linux__
+		sprintf(values[i_stime], "%f", (double) atol(values[i_stime]) /
+				(double) HZ);
+#endif /* __linux__ */
 		elog(DEBUG5, "pg_proctab: stime = %s", values[i_stime]);
 
 		/* cutime */
