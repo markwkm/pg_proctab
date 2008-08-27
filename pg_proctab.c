@@ -93,7 +93,7 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 			i_majflt, i_cmajflt, i_utime, i_stime, i_cutime, i_cstime,
 			i_priority, i_nice, i_num_threads, i_itrealvalue, i_starttime,
 			i_vsize, i_rss, i_exit_signal, i_processor, i_rt_priority,
-			i_policy, i_delayacct_blkio_ticks};
+			i_policy, i_delayacct_blkio_ticks, i_uid, i_username};
 
 	elog(DEBUG5, "pg_proctab: Entering stored function.");
 
@@ -186,9 +186,11 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		int32 pid;
 		int length;
 
+		struct stat stat_struct;
+
 		char **values = NULL;
 
-		values = (char **) palloc(30 * sizeof(char *));
+		values = (char **) palloc(32 * sizeof(char *));
 		values[i_pid] = (char *) palloc((INTEGER_LEN + 1) * sizeof(char));
 		values[i_comm] = (char *) palloc(1024 * sizeof(char));
 		values[i_state] = (char *) palloc(2 * sizeof(char));
@@ -223,6 +225,7 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		values[i_policy] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
 		values[i_delayacct_blkio_ticks] =
 				(char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+		values[i_uid] = (char *) palloc((INTEGER_LEN + 1) * sizeof(char));
 
 #ifdef __linux__
 		/* Check if /proc is mounted. */
@@ -240,10 +243,7 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		elog(DEBUG5, "pg_proctab: accessing process table for pid[%d] %d.",
 				call_cntr, pid);
 
-		/*
-		 * Sanity check, make sure we read the pid information that we're
-		 * asking for.
-		 */ 
+		/* Get the full command line information. */
 		sprintf(buffer, "%s/%d/cmdline", PROCFS, pid);
 		fd = open(buffer, O_RDONLY);
 		if (fd == -1)
@@ -261,6 +261,33 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		}
 		elog(DEBUG5, "pg_proctab: %s %s", buffer, values[i_fullcomm]);
 
+		/* Get the uid and username of the pid's owner. */
+		sprintf(buffer, "%s/%d", PROCFS, pid);
+		if (stat(buffer, &stat_struct) < 0)
+		{
+			elog(ERROR, "'%s' not found", buffer);
+			strcpy(values[i_uid], "-1");
+			values[i_username] = NULL;
+		}
+		else
+		{
+			struct passwd *pwd;
+
+			sprintf(values[i_uid], "%d", stat_struct.st_uid);
+			pwd = getpwuid(stat_struct.st_uid);
+			if (pwd == NULL)
+				values[i_username] = NULL;
+			else
+			{
+				values[i_username] = (char *) palloc((strlen(pwd->pw_name) +
+						1) * sizeof(char));
+				strcpy(values[i_username], pwd->pw_name);
+			}
+		}
+		elog(DEBUG5, "pg_proctab: uid %s", values[i_uid]);
+		elog(DEBUG5, "pg_proctab: username %s", values[i_username]);
+
+		/* Get the process table information for the pid. */
 		sprintf(buffer, "%d/stat", pid);
 		fd = open(buffer, O_RDONLY);
 		if (fd == -1)
