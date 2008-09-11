@@ -29,6 +29,10 @@ skip_token(const char *p)
 }
 #endif /* __linux__ */
 
+enum loadavg {i_load1, i_load5, i_load15, i_last_pid};
+
+int get_loadavg(char **);
+
 Datum pg_loadavg(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(pg_loadavg);
@@ -40,17 +44,6 @@ Datum pg_loadavg(PG_FUNCTION_ARGS)
 	int max_calls;
 	TupleDesc tupdesc;
 	AttInMetadata *attinmeta;
-
-#ifdef __linux__
-	struct statfs sb;
-	int fd;
-	int len;
-	char buffer[4096];
-	char *p;
-	char *q;
-#endif /* __linux__ */
-
-	enum loadavg {i_load1, i_load5, i_load15, i_last_pid};
 
 	elog(DEBUG5, "pg_loadavg: Entering stored function.");
 
@@ -79,12 +72,6 @@ Datum pg_loadavg(PG_FUNCTION_ARGS)
 		attinmeta = TupleDescGetAttInMetadata(tupdesc);
 		funcctx->attinmeta = attinmeta;
 
-		/* Check if /proc is mounted. */
-		if (statfs(PROCFS, &sb) < 0 || sb.f_type != PROC_SUPER_MAGIC)
-		{
-			elog(ERROR, "proc filesystem not mounted on " PROCFS "\n");
-			SRF_RETURN_DONE(funcctx);
-		} 
 		funcctx->max_calls = 1;
 
 		MemoryContextSwitchTo(oldcontext);
@@ -102,8 +89,6 @@ Datum pg_loadavg(PG_FUNCTION_ARGS)
 		HeapTuple tuple;
 		Datum result;
 
-		int length;
-
 		char **values = NULL;
 
 		values = (char **) palloc(4 * sizeof(char *));
@@ -112,57 +97,8 @@ Datum pg_loadavg(PG_FUNCTION_ARGS)
 		values[i_load15] = (char *) palloc((FLOAT_LEN + 1) * sizeof(char));
 		values[i_last_pid] = (char *) palloc((INTEGER_LEN + 1) * sizeof(char));
 
-#ifdef __linux__
-		sprintf(buffer, "%s/loadavg", PROCFS);
-		fd = open(buffer, O_RDONLY);
-		if (fd == -1)
-		{
-			elog(ERROR, "'%s' not found", buffer);
+		if (get_loadavg(values) == 0)
 			SRF_RETURN_DONE(funcctx);
-		}
-		len = read(fd, buffer, sizeof(buffer) - 1);
-		close(fd);
-		buffer[len] = '\0';
-		elog(DEBUG5, "pg_loadavg: %s", buffer);
-
-		p = buffer;
-
-		/* load1 */
-		GET_NEXT_VALUE(p, q, values[i_load1], length, "load1 not found", ' ');
-		elog(DEBUG5, "pg_loadavg: load1 = %s", values[i_load1]);
-
-		/* load5 */
-		GET_NEXT_VALUE(p, q, values[i_load5], length, "load5 not found", ' ');
-		elog(DEBUG5, "pg_loadavg: load5 = %s", values[i_load5]);
-
-		/* load15 */
-		GET_NEXT_VALUE(p, q, values[i_load15], length, "load15 not found",
-				' ');
-		elog(DEBUG5, "pg_loadavg: load15 = %s", values[i_load15]);
-
-		p = skip_token(p);			/* skip running/tasks */
-		++p;
-
-		/* last_pid */
-		/*
-		 * It appears sometimes this is the last item in /proc/PID/stat and
-		 * sometimes it's not, depending on the version of the kernel and
-		 * possibly the architecture.  So first test if it is the last item
-		 * before determining how to deliminate it.
-		 */
-		if (strchr(p, ' ') == NULL)
-		{
-			GET_NEXT_VALUE(p, q, values[i_last_pid], length,
-					"last_pid not found", '\n');
-		}
-		else
-		{
-			GET_NEXT_VALUE(p, q, values[i_last_pid], length,
-					"last_pid not found", ' ');
-		}
-		elog(DEBUG5, "pg_loadavg: last_pid = %s",
-				values[i_last_pid]);
-#endif /* __linux__ */
 
 		/* build a tuple */
 		tuple = BuildTupleFromCStrings(attinmeta, values);
@@ -176,4 +112,77 @@ Datum pg_loadavg(PG_FUNCTION_ARGS)
 	{
 		SRF_RETURN_DONE(funcctx);
 	}
+}
+
+int
+get_loadavg(char **values)
+{
+#ifdef __linux__
+	int length;
+
+	struct statfs sb;
+	int fd;
+	int len;
+	char buffer[4096];
+	char *p;
+	char *q;
+
+	/* Check if /proc is mounted. */
+	if (statfs(PROCFS, &sb) < 0 || sb.f_type != PROC_SUPER_MAGIC)
+	{
+		elog(ERROR, "proc filesystem not mounted on " PROCFS "\n");
+		return 0;
+	}
+
+	sprintf(buffer, "%s/loadavg", PROCFS);
+	fd = open(buffer, O_RDONLY);
+	if (fd == -1)
+	{
+		elog(ERROR, "'%s' not found", buffer);
+		return 0;
+	}
+	len = read(fd, buffer, sizeof(buffer) - 1);
+	close(fd);
+	buffer[len] = '\0';
+	elog(DEBUG5, "pg_loadavg: %s", buffer);
+
+	p = buffer;
+
+	/* load1 */
+	GET_NEXT_VALUE(p, q, values[i_load1], length, "load1 not found", ' ');
+
+	/* load5 */
+	GET_NEXT_VALUE(p, q, values[i_load5], length, "load5 not found", ' ');
+
+	/* load15 */
+	GET_NEXT_VALUE(p, q, values[i_load15], length, "load15 not found", ' ');
+
+	p = skip_token(p);			/* skip running/tasks */
+	++p;
+
+	/* last_pid */
+	/*
+	 * It appears sometimes this is the last item in /proc/PID/stat and
+	 * sometimes it's not, depending on the version of the kernel and
+	 * possibly the architecture.  So first test if it is the last item
+	 * before determining how to deliminate it.
+	 */
+	if (strchr(p, ' ') == NULL)
+	{
+		GET_NEXT_VALUE(p, q, values[i_last_pid], length,
+				"last_pid not found", '\n');
+	}
+	else
+	{
+		GET_NEXT_VALUE(p, q, values[i_last_pid], length,
+				"last_pid not found", ' ');
+	}
+#endif /* __linux__ */
+
+	elog(DEBUG5, "pg_loadavg: load1 = %s", values[i_load1]);
+	elog(DEBUG5, "pg_loadavg: load5 = %s", values[i_load5]);
+	elog(DEBUG5, "pg_loadavg: load15 = %s", values[i_load15]);
+	elog(DEBUG5, "pg_loadavg: last_pid = %s", values[i_last_pid]);
+
+	return 1;
 }

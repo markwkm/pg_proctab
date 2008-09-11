@@ -42,6 +42,15 @@ skip_token(const char *p)
 		"SELECT procpid " \
 		"FROM pg_stat_activity"
 
+enum proctab {i_pid, i_comm, i_fullcomm, i_state, i_ppid, i_pgrp, i_session,
+		i_tty_nr, i_tpgid, i_flags, i_minflt, i_cminflt, i_majflt, i_cmajflt,
+		i_utime, i_stime, i_cutime, i_cstime, i_priority, i_nice,
+		i_num_threads, i_itrealvalue, i_starttime, i_vsize, i_rss,
+		i_exit_signal, i_processor, i_rt_priority, i_policy,
+		i_delayacct_blkio_ticks, i_uid, i_username};
+
+int get_proctab(FuncCallContext *, char **);
+
 Datum pg_proctab(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(pg_proctab);
@@ -53,22 +62,6 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 	int max_calls;
 	TupleDesc tupdesc;
 	AttInMetadata *attinmeta;
-
-#ifdef __linux__
-	struct statfs sb;
-	int fd;
-	int len;
-	char buffer[4096];
-	char *p;
-	char *q;
-#endif /* __linux__ */
-
-	enum proctab {i_pid, i_comm, i_fullcomm, i_state, i_ppid, i_pgrp,
-			i_session, i_tty_nr, i_tpgid, i_flags, i_minflt, i_cminflt,
-			i_majflt, i_cmajflt, i_utime, i_stime, i_cutime, i_cstime,
-			i_priority, i_nice, i_num_threads, i_itrealvalue, i_starttime,
-			i_vsize, i_rss, i_exit_signal, i_processor, i_rt_priority,
-			i_policy, i_delayacct_blkio_ticks, i_uid, i_username};
 
 	elog(DEBUG5, "pg_proctab: Entering stored function.");
 
@@ -157,12 +150,6 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		HeapTuple tuple;
 		Datum result;
 
-		int32 *ppid;
-		int32 pid;
-		int length;
-
-		struct stat stat_struct;
-
 		char **values = NULL;
 
 		values = (char **) palloc(32 * sizeof(char *));
@@ -205,257 +192,8 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 				(char *) palloc((BIGINT_LEN + 1) * sizeof(char));
 		values[i_uid] = (char *) palloc((INTEGER_LEN + 1) * sizeof(char));
 
-#ifdef __linux__
-		/* Check if /proc is mounted. */
-		if (statfs(PROCFS, &sb) < 0 || sb.f_type != PROC_SUPER_MAGIC)
-		{
-			elog(ERROR, "proc filesystem not mounted on " PROCFS "\n");
+		if (get_proctab(funcctx, values) == 0)
 			SRF_RETURN_DONE(funcctx);
-		} 
-		chdir(PROCFS);
-
-		/* Read the stat info for the pid. */
-
-		ppid = (int32 *) funcctx->user_fctx;
-		pid = ppid[call_cntr];
-		elog(DEBUG5, "pg_proctab: accessing process table for pid[%d] %d.",
-				call_cntr, pid);
-
-		/* Get the full command line information. */
-		sprintf(buffer, "%s/%d/cmdline", PROCFS, pid);
-		fd = open(buffer, O_RDONLY);
-		if (fd == -1)
-		{
-			elog(ERROR, "'%s' not found", buffer);
-			values[i_fullcomm] = NULL;
-		}
-		else
-		{
-			values[i_fullcomm] =
-					(char *) palloc((FULLCOMM_LEN + 1) * sizeof(char));
-			len = read(fd, values[i_fullcomm], FULLCOMM_LEN);
-			close(fd);
-			values[i_fullcomm][len] = '\0';
-		}
-		elog(DEBUG5, "pg_proctab: %s %s", buffer, values[i_fullcomm]);
-
-		/* Get the uid and username of the pid's owner. */
-		sprintf(buffer, "%s/%d", PROCFS, pid);
-		if (stat(buffer, &stat_struct) < 0)
-		{
-			elog(ERROR, "'%s' not found", buffer);
-			strcpy(values[i_uid], "-1");
-			values[i_username] = NULL;
-		}
-		else
-		{
-			struct passwd *pwd;
-
-			sprintf(values[i_uid], "%d", stat_struct.st_uid);
-			pwd = getpwuid(stat_struct.st_uid);
-			if (pwd == NULL)
-				values[i_username] = NULL;
-			else
-			{
-				values[i_username] = (char *) palloc((strlen(pwd->pw_name) +
-						1) * sizeof(char));
-				strcpy(values[i_username], pwd->pw_name);
-			}
-		}
-		elog(DEBUG5, "pg_proctab: uid %s", values[i_uid]);
-		elog(DEBUG5, "pg_proctab: username %s", values[i_username]);
-
-		/* Get the process table information for the pid. */
-		sprintf(buffer, "%d/stat", pid);
-		fd = open(buffer, O_RDONLY);
-		if (fd == -1)
-		{
-			elog(ERROR, "%d/stat not found", pid);
-			SRF_RETURN_DONE(funcctx);
-		}
-		len = read(fd, buffer, sizeof(buffer) - 1);
-		close(fd);
-		buffer[len] = '\0';
-		elog(DEBUG5, "pg_proctab: %s", buffer);
-
-		p = buffer;
-
-		/* pid */
-		GET_NEXT_VALUE(p, q, values[i_pid], length, "pid not found", ' ');
-		elog(DEBUG5, "pg_proctab: pid = %s", values[i_pid]);
-
-		/* comm */
-		++p;
-		if ((q = strchr(p, ')')) == NULL)
-		{
-			elog(ERROR, "comm not found");
-			SRF_RETURN_DONE(funcctx);
-		}
-		length = q - p;
-		strncpy(values[i_comm], p, length);
-		values[i_comm][length] = '\0';
-		p = q + 2;
-		elog(DEBUG5, "pg_proctab: comm = %s", values[i_comm]);
-
-		/* state */
-		values[i_state][0] = *p;
-		values[i_state][1] = '\0';
-		p = p + 2;
-		elog(DEBUG5, "pg_proctab: state = %s", values[i_state]);
-
-		/* ppid */
-		GET_NEXT_VALUE(p, q, values[i_ppid], length, "ppid not found", ' ');
-		elog(DEBUG5, "pg_proctab: ppid = %s", values[i_ppid]);
-
-		/* pgrp */
-		GET_NEXT_VALUE(p, q, values[i_pgrp], length, "pgrp not found", ' ');
-		elog(DEBUG5, "pg_proctab: pgrp = %s", values[i_pgrp]);
-
-		/* session */
-		GET_NEXT_VALUE(p, q, values[i_session], length, "session not found",
-				' ');
-		elog(DEBUG5, "pg_proctab: session = %s", values[i_session]);
-
-		/* tty_nr */
-		GET_NEXT_VALUE(p, q, values[i_tty_nr], length, "tty_nr not found", ' ');
-		elog(DEBUG5, "pg_proctab: tty_nr = %s", values[i_tty_nr]);
-
-		/* tpgid */
-		GET_NEXT_VALUE(p, q, values[i_tpgid], length, "tpgid not found", ' ');
-		elog(DEBUG5, "pg_proctab: tpgid = %s", values[i_tpgid]);
-
-		/* flags */
-		GET_NEXT_VALUE(p, q, values[i_flags], length, "flags not found", ' ');
-		elog(DEBUG5, "pg_proctab: flags = %s", values[i_flags]);
-
-		/* minflt */
-		GET_NEXT_VALUE(p, q, values[i_minflt], length, "minflt not found", ' ');
-		elog(DEBUG5, "pg_proctab: minflt = %s", values[i_minflt]);
-
-		/* cminflt */
-		GET_NEXT_VALUE(p, q, values[i_cminflt], length, "cminflt not found",
-				' ');
-		elog(DEBUG5, "pg_proctab: cminflt = %s", values[i_cminflt]);
-
-		/* majflt */
-		GET_NEXT_VALUE(p, q, values[i_majflt], length, "majflt not found", ' ');
-		elog(DEBUG5, "pg_proctab: majflt = %s", values[i_majflt]);
-
-		/* cmajflt */
-		GET_NEXT_VALUE(p, q, values[i_cmajflt], length, "cmajflt not found",
-				' ');
-		elog(DEBUG5, "pg_proctab: cmajflt = %s", values[i_cmajflt]);
-
-		/* utime */
-		GET_NEXT_VALUE(p, q, values[i_utime], length, "utime not found", ' ');
-#ifdef __linux__
-		sprintf(values[i_utime], "%f", (double) atol(values[i_utime]) /
-				(double) HZ);
-#endif /* __linux__ */
-		elog(DEBUG5, "pg_proctab: utime = %s", values[i_utime]);
-
-		/* stime */
-		GET_NEXT_VALUE(p, q, values[i_stime], length, "stime not found", ' ');
-#ifdef __linux__
-		sprintf(values[i_stime], "%f", (double) atol(values[i_stime]) /
-				(double) HZ);
-#endif /* __linux__ */
-		elog(DEBUG5, "pg_proctab: stime = %s", values[i_stime]);
-
-		/* cutime */
-		GET_NEXT_VALUE(p, q, values[i_cutime], length, "cutime not found", ' ');
-		elog(DEBUG5, "pg_proctab: cutime = %s", values[i_cutime]);
-
-		/* cstime */
-		GET_NEXT_VALUE(p, q, values[i_cstime], length, "cstime not found", ' ');
-		elog(DEBUG5, "pg_proctab: cstime = %s", values[i_cstime]);
-
-		/* priority */
-		GET_NEXT_VALUE(p, q, values[i_priority], length, "priority not found",
-				' ');
-		elog(DEBUG5, "pg_proctab: priority = %s", values[i_priority]);
-
-		/* nice */
-		GET_NEXT_VALUE(p, q, values[i_nice], length, "nice not found", ' ');
-		elog(DEBUG5, "pg_proctab: nice = %s", values[i_nice]);
-
-		/* num_threads */
-		GET_NEXT_VALUE(p, q, values[i_num_threads], length,
-				"num_threads not found", ' ');
-		elog(DEBUG5, "pg_proctab: num_threads = %s", values[i_num_threads]);
-
-		/* itrealvalue */
-		GET_NEXT_VALUE(p, q, values[i_itrealvalue], length,
-				"itrealvalue not found", ' ');
-		elog(DEBUG5, "pg_proctab: itrealvalue = %s", values[i_itrealvalue]);
-
-		/* starttime */
-		GET_NEXT_VALUE(p, q, values[i_starttime], length,
-				"starttime not found", ' ');
-		elog(DEBUG5, "pg_proctab: starttime = %s", values[i_starttime]);
-
-		/* vsize */
-		GET_NEXT_VALUE(p, q, values[i_vsize], length, "vsize not found", ' ');
-		elog(DEBUG5, "pg_proctab: vsize = %s", values[i_vsize]);
-
-		/* rss */
-		GET_NEXT_VALUE(p, q, values[i_rss], length, "rss not found", ' ');
-		elog(DEBUG5, "pg_proctab: rss = %s", values[i_rss]);
-
-		p = skip_token(p);			/* skip rlim */
-		p = skip_token(p);			/* skip startcode */
-		p = skip_token(p);			/* skip endcode */
-		p = skip_token(p);			/* skip startstack */
-		p = skip_token(p);			/* skip kstkesp */
-		p = skip_token(p);			/* skip kstkeip */
-		p = skip_token(p);			/* skip signal (obsolete) */
-		p = skip_token(p);			/* skip blocked (obsolete) */
-		p = skip_token(p);			/* skip sigignore (obsolete) */
-		p = skip_token(p);			/* skip sigcatch (obsolete) */
-		p = skip_token(p);			/* skip wchan */
-		p = skip_token(p);			/* skip nswap (place holder) */
-		p = skip_token(p);			/* skip cnswap (place holder) */
-		++p;
-
-		/* exit_signal */
-		GET_NEXT_VALUE(p, q, values[i_exit_signal], length,
-				"exit_signal not found", ' ');
-		elog(DEBUG5, "pg_proctab: exit_signal = %s", values[i_exit_signal]);
-
-		/* processor */
-		GET_NEXT_VALUE(p, q, values[i_processor], length,
-				"processor not found", ' ');
-		elog(DEBUG5, "pg_proctab: processor = %s", values[i_processor]);
-
-		/* rt_priority */
-		GET_NEXT_VALUE(p, q, values[i_rt_priority], length,
-				"rt_priority not found", ' ');
-		elog(DEBUG5, "pg_proctab: rt_priority = %s", values[i_rt_priority]);
-
-		/* policy */
-		GET_NEXT_VALUE(p, q, values[i_policy], length, "policy not found", ' ');
-		elog(DEBUG5, "pg_proctab: policy = %s", values[i_policy]);
-
-		/* delayacct_blkio_ticks */
-		/*
-		 * It appears sometimes this is the last item in /proc/PID/stat and
-		 * sometimes it's not, depending on the version of the kernel and
-		 * possibly the architecture.  So first test if it is the last item
-		 * before determining how to deliminate it.
-		 */
-		if (strchr(p, ' ') == NULL)
-		{
-			GET_NEXT_VALUE(p, q, values[i_delayacct_blkio_ticks], length,
-					"delayacct_blkio_ticks not found", '\n');
-		}
-		else
-		{
-			GET_NEXT_VALUE(p, q, values[i_delayacct_blkio_ticks], length,
-					"delayacct_blkio_ticks not found", ' ');
-		}
-		elog(DEBUG5, "pg_proctab: delayacct_blkio_ticks = %s",
-				values[i_delayacct_blkio_ticks]);
-#endif /* __linux__ */
 
 		/* build a tuple */
 		tuple = BuildTupleFromCStrings(attinmeta, values);
@@ -469,4 +207,268 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 	{
 		SRF_RETURN_DONE(funcctx);
 	}
+}
+
+int
+get_proctab(FuncCallContext *funcctx, char **values)
+{
+#ifdef __linux__
+	int32 *ppid;
+	int32 pid;
+	int length;
+
+	struct stat stat_struct;
+
+	struct statfs sb;
+	int fd;
+	int len;
+	char buffer[4096];
+	char *p;
+	char *q;
+
+	/* Check if /proc is mounted. */
+	if (statfs(PROCFS, &sb) < 0 || sb.f_type != PROC_SUPER_MAGIC)
+	{
+		elog(ERROR, "proc filesystem not mounted on " PROCFS "\n");
+		return 0;
+	}
+	chdir(PROCFS);
+
+	/* Read the stat info for the pid. */
+
+	ppid = (int32 *) funcctx->user_fctx;
+	pid = ppid[funcctx->call_cntr];
+	elog(DEBUG5, "pg_proctab: accessing process table for pid[%d] %d.",
+				funcctx->call_cntr, pid);
+
+	/* Get the full command line information. */
+	sprintf(buffer, "%s/%d/cmdline", PROCFS, pid);
+	fd = open(buffer, O_RDONLY);
+	if (fd == -1)
+	{
+		elog(ERROR, "'%s' not found", buffer);
+		values[i_fullcomm] = NULL;
+	}
+	else
+	{
+		values[i_fullcomm] =
+				(char *) palloc((FULLCOMM_LEN + 1) * sizeof(char));
+		len = read(fd, values[i_fullcomm], FULLCOMM_LEN);
+		close(fd);
+		values[i_fullcomm][len] = '\0';
+	}
+	elog(DEBUG5, "pg_proctab: %s %s", buffer, values[i_fullcomm]);
+
+	/* Get the uid and username of the pid's owner. */
+	sprintf(buffer, "%s/%d", PROCFS, pid);
+	if (stat(buffer, &stat_struct) < 0)
+	{
+		elog(ERROR, "'%s' not found", buffer);
+		strcpy(values[i_uid], "-1");
+		values[i_username] = NULL;
+	}
+	else
+	{
+		struct passwd *pwd;
+
+		sprintf(values[i_uid], "%d", stat_struct.st_uid);
+		pwd = getpwuid(stat_struct.st_uid);
+		if (pwd == NULL)
+			values[i_username] = NULL;
+		else
+		{
+			values[i_username] = (char *) palloc((strlen(pwd->pw_name) +
+					1) * sizeof(char));
+			strcpy(values[i_username], pwd->pw_name);
+		}
+	}
+
+	/* Get the process table information for the pid. */
+	sprintf(buffer, "%d/stat", pid);
+	fd = open(buffer, O_RDONLY);
+	if (fd == -1)
+	{
+		elog(ERROR, "%d/stat not found", pid);
+		return 0;
+	}
+	len = read(fd, buffer, sizeof(buffer) - 1);
+	close(fd);
+	buffer[len] = '\0';
+	elog(DEBUG5, "pg_proctab: %s", buffer);
+
+	p = buffer;
+
+	/* pid */
+	GET_NEXT_VALUE(p, q, values[i_pid], length, "pid not found", ' ');
+
+	/* comm */
+	++p;
+	if ((q = strchr(p, ')')) == NULL)
+	{
+		elog(ERROR, "pg_proctab: comm not found");
+		return 0;
+	}
+	length = q - p;
+	strncpy(values[i_comm], p, length);
+	values[i_comm][length] = '\0';
+	p = q + 2;
+
+	/* state */
+	values[i_state][0] = *p;
+	values[i_state][1] = '\0';
+	p = p + 2;
+
+	/* ppid */
+	GET_NEXT_VALUE(p, q, values[i_ppid], length, "ppid not found", ' ');
+
+	/* pgrp */
+	GET_NEXT_VALUE(p, q, values[i_pgrp], length, "pgrp not found", ' ');
+
+	/* session */
+	GET_NEXT_VALUE(p, q, values[i_session], length, "session not found", ' ');
+
+	/* tty_nr */
+	GET_NEXT_VALUE(p, q, values[i_tty_nr], length, "tty_nr not found", ' ');
+
+	/* tpgid */
+	GET_NEXT_VALUE(p, q, values[i_tpgid], length, "tpgid not found", ' ');
+
+	/* flags */
+	GET_NEXT_VALUE(p, q, values[i_flags], length, "flags not found", ' ');
+
+	/* minflt */
+	GET_NEXT_VALUE(p, q, values[i_minflt], length, "minflt not found", ' ');
+
+	/* cminflt */
+	GET_NEXT_VALUE(p, q, values[i_cminflt], length, "cminflt not found", ' ');
+
+	/* majflt */
+	GET_NEXT_VALUE(p, q, values[i_majflt], length, "majflt not found", ' ');
+
+	/* cmajflt */
+	GET_NEXT_VALUE(p, q, values[i_cmajflt], length, "cmajflt not found", ' ');
+
+		/* utime */
+	GET_NEXT_VALUE(p, q, values[i_utime], length, "utime not found", ' ');
+	sprintf(values[i_utime], "%f", (double) atol(values[i_utime]) /
+				(double) HZ);
+
+	/* stime */
+	GET_NEXT_VALUE(p, q, values[i_stime], length, "stime not found", ' ');
+	sprintf(values[i_stime], "%f", (double) atol(values[i_stime]) /
+			(double) HZ);
+
+	/* cutime */
+	GET_NEXT_VALUE(p, q, values[i_cutime], length, "cutime not found", ' ');
+
+	/* cstime */
+	GET_NEXT_VALUE(p, q, values[i_cstime], length, "cstime not found", ' ');
+
+	/* priority */
+	GET_NEXT_VALUE(p, q, values[i_priority], length, "priority not found", ' ');
+
+	/* nice */
+	GET_NEXT_VALUE(p, q, values[i_nice], length, "nice not found", ' ');
+
+	/* num_threads */
+	GET_NEXT_VALUE(p, q, values[i_num_threads], length,
+				"num_threads not found", ' ');
+
+	/* itrealvalue */
+	GET_NEXT_VALUE(p, q, values[i_itrealvalue], length,
+			"itrealvalue not found", ' ');
+
+	/* starttime */
+	GET_NEXT_VALUE(p, q, values[i_starttime], length, "starttime not found",
+			' ');
+
+	/* vsize */
+	GET_NEXT_VALUE(p, q, values[i_vsize], length, "vsize not found", ' ');
+
+	/* rss */
+	GET_NEXT_VALUE(p, q, values[i_rss], length, "rss not found", ' ');
+
+	p = skip_token(p);			/* skip rlim */
+	p = skip_token(p);			/* skip startcode */
+	p = skip_token(p);			/* skip endcode */
+	p = skip_token(p);			/* skip startstack */
+	p = skip_token(p);			/* skip kstkesp */
+	p = skip_token(p);			/* skip kstkeip */
+	p = skip_token(p);			/* skip signal (obsolete) */
+	p = skip_token(p);			/* skip blocked (obsolete) */
+	p = skip_token(p);			/* skip sigignore (obsolete) */
+	p = skip_token(p);			/* skip sigcatch (obsolete) */
+	p = skip_token(p);			/* skip wchan */
+	p = skip_token(p);			/* skip nswap (place holder) */
+	p = skip_token(p);			/* skip cnswap (place holder) */
+	++p;
+
+	/* exit_signal */
+	GET_NEXT_VALUE(p, q, values[i_exit_signal], length,
+			"exit_signal not found", ' ');
+
+	/* processor */
+	GET_NEXT_VALUE(p, q, values[i_processor], length, "processor not found",
+			' ');
+
+	/* rt_priority */
+	GET_NEXT_VALUE(p, q, values[i_rt_priority], length,
+			"rt_priority not found", ' ');
+
+	/* policy */
+	GET_NEXT_VALUE(p, q, values[i_policy], length, "policy not found", ' ');
+
+	/* delayacct_blkio_ticks */
+	/*
+	 * It appears sometimes this is the last item in /proc/PID/stat and
+	 * sometimes it's not, depending on the version of the kernel and
+	 * possibly the architecture.  So first test if it is the last item
+	 * before determining how to deliminate it.
+	 */
+	if (strchr(p, ' ') == NULL)
+	{
+		GET_NEXT_VALUE(p, q, values[i_delayacct_blkio_ticks], length,
+				"delayacct_blkio_ticks not found", '\n');
+	}
+	else
+	{
+		GET_NEXT_VALUE(p, q, values[i_delayacct_blkio_ticks], length,
+				"delayacct_blkio_ticks not found", ' ');
+	}
+#endif /* __linux__ */
+
+	elog(DEBUG5, "pg_proctab: uid %s", values[i_uid]);
+	elog(DEBUG5, "pg_proctab: username %s", values[i_username]);
+	elog(DEBUG5, "pg_proctab: pid = %s", values[i_pid]);
+	elog(DEBUG5, "pg_proctab: comm = %s", values[i_comm]);
+	elog(DEBUG5, "pg_proctab: state = %s", values[i_state]);
+	elog(DEBUG5, "pg_proctab: ppid = %s", values[i_ppid]);
+	elog(DEBUG5, "pg_proctab: pgrp = %s", values[i_pgrp]);
+	elog(DEBUG5, "pg_proctab: session = %s", values[i_session]);
+	elog(DEBUG5, "pg_proctab: tty_nr = %s", values[i_tty_nr]);
+	elog(DEBUG5, "pg_proctab: tpgid = %s", values[i_tpgid]);
+	elog(DEBUG5, "pg_proctab: flags = %s", values[i_flags]);
+	elog(DEBUG5, "pg_proctab: minflt = %s", values[i_minflt]);
+	elog(DEBUG5, "pg_proctab: cminflt = %s", values[i_cminflt]);
+	elog(DEBUG5, "pg_proctab: majflt = %s", values[i_majflt]);
+	elog(DEBUG5, "pg_proctab: cmajflt = %s", values[i_cmajflt]);
+	elog(DEBUG5, "pg_proctab: utime = %s", values[i_utime]);
+	elog(DEBUG5, "pg_proctab: stime = %s", values[i_stime]);
+	elog(DEBUG5, "pg_proctab: cutime = %s", values[i_cutime]);
+	elog(DEBUG5, "pg_proctab: cstime = %s", values[i_cstime]);
+	elog(DEBUG5, "pg_proctab: priority = %s", values[i_priority]);
+	elog(DEBUG5, "pg_proctab: nice = %s", values[i_nice]);
+	elog(DEBUG5, "pg_proctab: num_threads = %s", values[i_num_threads]);
+	elog(DEBUG5, "pg_proctab: itrealvalue = %s", values[i_itrealvalue]);
+	elog(DEBUG5, "pg_proctab: starttime = %s", values[i_starttime]);
+	elog(DEBUG5, "pg_proctab: vsize = %s", values[i_vsize]);
+	elog(DEBUG5, "pg_proctab: rss = %s", values[i_rss]);
+	elog(DEBUG5, "pg_proctab: exit_signal = %s", values[i_exit_signal]);
+	elog(DEBUG5, "pg_proctab: processor = %s", values[i_processor]);
+	elog(DEBUG5, "pg_proctab: rt_priority = %s", values[i_rt_priority]);
+	elog(DEBUG5, "pg_proctab: policy = %s", values[i_policy]);
+	elog(DEBUG5, "pg_proctab: delayacct_blkio_ticks = %s",
+			values[i_delayacct_blkio_ticks]);
+
+	return 1;
 }

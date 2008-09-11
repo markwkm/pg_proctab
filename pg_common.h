@@ -22,7 +22,7 @@ PG_MODULE_MAGIC;
         if ((q = strchr(p, delim)) == NULL) \
         { \
             elog(ERROR, msg); \
-            SRF_RETURN_DONE(funcctx); \
+            return 0; \
         } \
         length = q - p; \
         strncpy(value, p, length); \

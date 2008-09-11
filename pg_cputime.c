@@ -29,6 +29,9 @@ skip_token(const char *p)
 }
 #endif /* __linux__ */
 
+enum loadavg {i_user, i_nice, i_system, i_idle, i_iowait};
+
+int get_cputime(char **);
 Datum pg_cputime(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(pg_cputime);
@@ -40,17 +43,6 @@ Datum pg_cputime(PG_FUNCTION_ARGS)
 	int max_calls;
 	TupleDesc tupdesc;
 	AttInMetadata *attinmeta;
-
-#ifdef __linux__
-	struct statfs sb;
-	int fd;
-	int len;
-	char buffer[4096];
-	char *p;
-	char *q;
-#endif /* __linux__ */
-
-	enum loadavg {i_user, i_nice, i_system, i_idle, i_iowait};
 
 	elog(DEBUG5, "pg_cputime: Entering stored function.");
 
@@ -79,12 +71,6 @@ Datum pg_cputime(PG_FUNCTION_ARGS)
 		attinmeta = TupleDescGetAttInMetadata(tupdesc);
 		funcctx->attinmeta = attinmeta;
 
-		/* Check if /proc is mounted. */
-		if (statfs(PROCFS, &sb) < 0 || sb.f_type != PROC_SUPER_MAGIC)
-		{
-			elog(ERROR, "proc filesystem not mounted on " PROCFS "\n");
-			SRF_RETURN_DONE(funcctx);
-		} 
 		funcctx->max_calls = 1;
 
 		MemoryContextSwitchTo(oldcontext);
@@ -102,8 +88,6 @@ Datum pg_cputime(PG_FUNCTION_ARGS)
 		HeapTuple tuple;
 		Datum result;
 
-		int length;
-
 		char **values = NULL;
 
 		values = (char **) palloc(5 * sizeof(char *));
@@ -113,47 +97,8 @@ Datum pg_cputime(PG_FUNCTION_ARGS)
 		values[i_idle] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
 		values[i_iowait] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
 
-#ifdef __linux__
-		sprintf(buffer, "%s/stat", PROCFS);
-		fd = open(buffer, O_RDONLY);
-		if (fd == -1)
-		{
-			elog(ERROR, "'%s' not found", buffer);
+		if (get_cputime(values) == 0)
 			SRF_RETURN_DONE(funcctx);
-		}
-		len = read(fd, buffer, sizeof(buffer) - 1);
-		close(fd);
-		buffer[len] = '\0';
-		elog(DEBUG5, "pg_cputime: %s", buffer);
-
-		p = buffer;
-
-		p = skip_token(p);			/* skip cpu */
-		++p;
-		++p;
-
-		/* user */
-		GET_NEXT_VALUE(p, q, values[i_user], length, "user not found", ' ');
-		elog(DEBUG5, "pg_cputime: user = %s", values[i_user]);
-
-		/* nice */
-		GET_NEXT_VALUE(p, q, values[i_nice], length, "nice not found", ' ');
-		elog(DEBUG5, "pg_cputime: nice = %s", values[i_nice]);
-
-		/* system */
-		GET_NEXT_VALUE(p, q, values[i_system], length, "system not found",
-				' ');
-		elog(DEBUG5, "pg_cputime: system = %s", values[i_system]);
-
-		/* idle */
-		GET_NEXT_VALUE(p, q, values[i_idle], length, "idle not found", ' ');
-		elog(DEBUG5, "pg_cputime: idle = %s", values[i_idle]);
-
-		/* iowait */
-		GET_NEXT_VALUE(p, q, values[i_iowait], length, "iowait not found",
-				' ');
-		elog(DEBUG5, "pg_cputime: iowait = %s", values[i_iowait]);
-#endif /* __linux__ */
 
 		/* build a tuple */
 		tuple = BuildTupleFromCStrings(attinmeta, values);
@@ -167,4 +112,67 @@ Datum pg_cputime(PG_FUNCTION_ARGS)
 	{
 		SRF_RETURN_DONE(funcctx);
 	}
+}
+
+int
+get_cputime(char **values)
+{
+#ifdef __linux__
+	struct statfs sb;
+	int fd;
+	int len;
+	char buffer[4096];
+	char *p;
+	char *q;
+
+	int length;
+
+	/* Check if /proc is mounted. */
+	if (statfs(PROCFS, &sb) < 0 || sb.f_type != PROC_SUPER_MAGIC)
+	{
+		elog(ERROR, "proc filesystem not mounted on " PROCFS "\n");
+		return 0;
+	}
+
+	sprintf(buffer, "%s/stat", PROCFS);
+	fd = open(buffer, O_RDONLY);
+	if (fd == -1)
+	{
+		elog(ERROR, "'%s' not found", buffer);
+		return 0;
+	}
+	len = read(fd, buffer, sizeof(buffer) - 1);
+	close(fd);
+	buffer[len] = '\0';
+	elog(DEBUG5, "pg_cputime: %s", buffer);
+
+	p = buffer;
+
+	p = skip_token(p);			/* skip cpu */
+	++p;
+	++p;
+
+	/* user */
+	GET_NEXT_VALUE(p, q, values[i_user], length, "user not found", ' ');
+
+	/* nice */
+	GET_NEXT_VALUE(p, q, values[i_nice], length, "nice not found", ' ');
+
+	/* system */
+	GET_NEXT_VALUE(p, q, values[i_system], length, "system not found", ' ');
+
+	/* idle */
+	GET_NEXT_VALUE(p, q, values[i_idle], length, "idle not found", ' ');
+
+	/* iowait */
+	GET_NEXT_VALUE(p, q, values[i_iowait], length, "iowait not found", ' ');
+#endif /* __linux__ */
+
+	elog(DEBUG5, "pg_cputime: user = %s", values[i_user]);
+	elog(DEBUG5, "pg_cputime: nice = %s", values[i_nice]);
+	elog(DEBUG5, "pg_cputime: system = %s", values[i_system]);
+	elog(DEBUG5, "pg_cputime: idle = %s", values[i_idle]);
+	elog(DEBUG5, "pg_cputime: iowait = %s", values[i_iowait]);
+
+	return 1;
 }

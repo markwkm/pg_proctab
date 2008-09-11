@@ -27,8 +27,12 @@ skip_token(const char *p)
 		p++;
 	return (char *) p;
 }
-
 #endif /* __linux__ */
+
+enum loadavg {i_memused, i_memfree, i_memshared, i_membuffers, i_memcached,
+		i_swapused, i_swapfree, i_swapcached};
+
+int get_memusage(char **);
 
 Datum pg_memusage(PG_FUNCTION_ARGS);
 
@@ -42,17 +46,6 @@ Datum pg_memusage(PG_FUNCTION_ARGS)
 	TupleDesc tupdesc;
 	AttInMetadata *attinmeta;
 
-#ifdef __linux__
-	struct statfs sb;
-	int fd;
-	int len;
-	char buffer[4096];
-	char *p;
-	char *q;
-#endif /* __linux__ */
-
-	enum loadavg {i_memused, i_memfree, i_memshared, i_membuffers,
-			i_memcached, i_swapused, i_swapfree, i_swapcached};
 
 	elog(DEBUG5, "pg_memusage: Entering stored function.");
 
@@ -81,12 +74,6 @@ Datum pg_memusage(PG_FUNCTION_ARGS)
 		attinmeta = TupleDescGetAttInMetadata(tupdesc);
 		funcctx->attinmeta = attinmeta;
 
-		/* Check if /proc is mounted. */
-		if (statfs(PROCFS, &sb) < 0 || sb.f_type != PROC_SUPER_MAGIC)
-		{
-			elog(ERROR, "proc filesystem not mounted on " PROCFS "\n");
-			SRF_RETURN_DONE(funcctx);
-		} 
 		funcctx->max_calls = 1;
 
 		MemoryContextSwitchTo(oldcontext);
@@ -104,12 +91,6 @@ Datum pg_memusage(PG_FUNCTION_ARGS)
 		HeapTuple tuple;
 		Datum result;
 
-		int length;
-		unsigned long memfree = 0;
-		unsigned long memtotal = 0;
-		unsigned long swapfree = 0;
-		unsigned long swaptotal = 0;
-
 		char **values = NULL;
 
 		values = (char **) palloc(8 * sizeof(char *));
@@ -124,105 +105,8 @@ Datum pg_memusage(PG_FUNCTION_ARGS)
 		values[i_swapcached] =
 				(char *) palloc((BIGINT_LEN + 1) * sizeof(char));
 
-#ifdef __linux__
-		sprintf(buffer, "%s/meminfo", PROCFS);
-		fd = open(buffer, O_RDONLY);
-		if (fd == -1)
-		{
-			elog(ERROR, "'%s' not found", buffer);
+		if (get_memusage(values) == 0)
 			SRF_RETURN_DONE(funcctx);
-		}
-		len = read(fd, buffer, sizeof(buffer) - 1);
-		close(fd);
-		buffer[len] = '\0';
-		elog(DEBUG5, "pg_memusage: %s", buffer);
-
-		p = buffer - 1;
-
-		values[i_memshared][0] = '0';
-		values[i_memshared][1] = '\0';
-
-		while (p != NULL) {
-			++p;
-			if (strncmp(p, "Buffers:", 8) == 0)
-			{
-				p = skip_token(p);
-
-				while (p[0] == ' ')
-					++p;
-				GET_NEXT_VALUE(p, q, values[i_membuffers], length,
-						"Buffers not found", ' ');
-				elog(DEBUG5, "pg_memusage: Buffers = %s",
-						values[i_membuffers]);
-			}
-			else if (strncmp(p, "Cached:", 7) == 0)
-			{
-				p = skip_token(p);
-
-				while (p[0] == ' ')
-					++p;
-				GET_NEXT_VALUE(p, q, values[i_memcached], length,
-						"Cached not found", ' ');
-				elog(DEBUG5, "pg_memusage: Cached = %s",
-						values[i_memcached]);
-			}
-			else if (strncmp(p, "MemFree:", 8) == 0)
-			{
-				p = skip_token(p);
-
-				memfree = strtoul(p, &p, 10);
-				elog(DEBUG5, "pg_memusage: MemFree = %lu", memfree);
-				sprintf(values[i_memused], "%lu", memtotal - memfree);
-				sprintf(values[i_memfree], "%lu", memfree);
-			}
-			else if (strncmp(p, "MemShared:", 10) == 0)
-			{
-				p = skip_token(p);
-
-				while (p[0] == ' ')
-					++p;
-				GET_NEXT_VALUE(p, q, values[i_memshared], length,
-						"MemShared not found", ' ');
-				elog(DEBUG5, "pg_memusage: MemShared = %s",
-						values[i_memshared]);
-			}
-			else if (strncmp(p, "MemTotal:", 9) == 0)
-			{
-				p = skip_token(p);
-
-				memtotal = strtoul(p, &p, 10);
-				elog(DEBUG5, "pg_memusage: MemTotal = %lu", memtotal);
-			}
-			else if (strncmp(p, "SwapFree:", 9) == 0)
-			{
-				p = skip_token(p);
-
-				swapfree = strtoul(p, &p, 10);
-				elog(DEBUG5, "pg_memusage: SwapFree = %lu", swapfree);
-				sprintf(values[i_swapused], "%lu", swaptotal - swapfree);
-				sprintf(values[i_swapfree], "%lu", swapfree);
-			}
-			else if (strncmp(p, "SwapCached:", 11) == 0)
-			{
-				p = skip_token(p);
-
-				while (p[0] == ' ')
-					++p;
-				GET_NEXT_VALUE(p, q, values[i_swapcached], length,
-						"SwapCached not found", ' ');
-				elog(DEBUG5, "pg_memusage: SwapCached = %s",
-						values[i_swapcached]);
-			}
-			else if (strncmp(p, "SwapTotal:", 10) == 0)
-			{
-				p = skip_token(p);
-
-				swaptotal = strtoul(p, &p, 10);
-				elog(DEBUG5, "pg_memusage: SwapTotal = %lu", swaptotal);
-			}
-			p = strchr(p, '\n');
-		}
-#endif /* __linux__ */
 
 		/* build a tuple */
 		tuple = BuildTupleFromCStrings(attinmeta, values);
@@ -236,4 +120,129 @@ Datum pg_memusage(PG_FUNCTION_ARGS)
 	{
 		SRF_RETURN_DONE(funcctx);
 	}
+}
+
+int
+get_memusage(char **values)
+{
+#ifdef __linux__
+	int length;
+	unsigned long memfree = 0;
+	unsigned long memtotal = 0;
+	unsigned long swapfree = 0;
+	unsigned long swaptotal = 0;
+
+	struct statfs sb;
+	int fd;
+	int len;
+	char buffer[4096];
+	char *p;
+	char *q;
+
+	/* Check if /proc is mounted. */
+	if (statfs(PROCFS, &sb) < 0 || sb.f_type != PROC_SUPER_MAGIC)
+	{
+		elog(ERROR, "proc filesystem not mounted on " PROCFS "\n");
+		return 0;
+	}
+
+	sprintf(buffer, "%s/meminfo", PROCFS);
+	fd = open(buffer, O_RDONLY);
+	if (fd == -1)
+	{
+		elog(ERROR, "'%s' not found", buffer);
+		return 0;
+	}
+	len = read(fd, buffer, sizeof(buffer) - 1);
+	close(fd);
+	buffer[len] = '\0';
+	elog(DEBUG5, "pg_memusage: %s", buffer);
+
+	p = buffer - 1;
+
+	values[i_memshared][0] = '0';
+	values[i_memshared][1] = '\0';
+
+	while (p != NULL) {
+		++p;
+		if (strncmp(p, "Buffers:", 8) == 0)
+		{
+			p = skip_token(p);
+
+			while (p[0] == ' ')
+				++p;
+			GET_NEXT_VALUE(p, q, values[i_membuffers], length,
+					"Buffers not found", ' ');
+		}
+		else if (strncmp(p, "Cached:", 7) == 0)
+		{
+			p = skip_token(p);
+
+			while (p[0] == ' ')
+				++p;
+			GET_NEXT_VALUE(p, q, values[i_memcached], length,
+					"Cached not found", ' ');
+		}
+		else if (strncmp(p, "MemFree:", 8) == 0)
+		{
+			p = skip_token(p);
+
+			memfree = strtoul(p, &p, 10);
+			sprintf(values[i_memused], "%lu", memtotal - memfree);
+			sprintf(values[i_memfree], "%lu", memfree);
+		}
+		else if (strncmp(p, "MemShared:", 10) == 0)
+		{
+			p = skip_token(p);
+
+			while (p[0] == ' ')
+				++p;
+			GET_NEXT_VALUE(p, q, values[i_memshared], length,
+					"MemShared not found", ' ');
+		}
+		else if (strncmp(p, "MemTotal:", 9) == 0)
+		{
+			p = skip_token(p);
+
+			memtotal = strtoul(p, &p, 10);
+			elog(DEBUG5, "pg_memusage: MemTotal = %lu", memtotal);
+		}
+		else if (strncmp(p, "SwapFree:", 9) == 0)
+		{
+			p = skip_token(p);
+
+			swapfree = strtoul(p, &p, 10);
+			sprintf(values[i_swapused], "%lu", swaptotal - swapfree);
+			sprintf(values[i_swapfree], "%lu", swapfree);
+		}
+		else if (strncmp(p, "SwapCached:", 11) == 0)
+		{
+			p = skip_token(p);
+
+			while (p[0] == ' ')
+				++p;
+			GET_NEXT_VALUE(p, q, values[i_swapcached], length,
+					"SwapCached not found", ' ');
+		}
+		else if (strncmp(p, "SwapTotal:", 10) == 0)
+		{
+			p = skip_token(p);
+
+			swaptotal = strtoul(p, &p, 10);
+			elog(DEBUG5, "pg_memusage: SwapTotal = %lu", swaptotal);
+		}
+		p = strchr(p, '\n');
+	}
+#endif /* __linux__ */
+
+	elog(DEBUG5, "pg_memusage: Buffers = %s", values[i_membuffers]);
+	elog(DEBUG5, "pg_memusage: Cached = %s", values[i_memcached]);
+	elog(DEBUG5, "pg_memusage: MemFree = %s", values[i_memfree]);
+	elog(DEBUG5, "pg_memusage: MemUsed = %s", values[i_memused]);
+	elog(DEBUG5, "pg_memusage: MemShared = %s", values[i_memshared]);
+	elog(DEBUG5, "pg_memusage: SwapCached = %s", values[i_swapcached]);
+	elog(DEBUG5, "pg_memusage: SwapFree = %s", values[i_swapfree]);
+	elog(DEBUG5, "pg_memusage: SwapUsed = %s", values[i_swapused]);
+
+	return 1;
 }
