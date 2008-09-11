@@ -14,28 +14,6 @@
 #include <executor/spi.h>
 #include "pg_common.h"
 
-#ifdef __linux__
-#include <ctype.h>
-
-/*
- * For details on the Linux process table, see the description of
- * /proc/PID/stat in Documentation/filesystems/proc.txt in the Linux source
- * code.
- */
-
-static inline char *skip_token(const char *);
-
-static inline char *
-skip_token(const char *p)
-{
-	while (isspace(*p))
-		p++;
-	while (*p && !isspace(*p))
-		p++;
-	return (char *) p;
-}
-#endif /* __linux__ */
-
 #define FULLCOMM_LEN 1024
 
 #define GET_PIDS \
@@ -213,6 +191,12 @@ int
 get_proctab(FuncCallContext *funcctx, char **values)
 {
 #ifdef __linux__
+	/*
+ 	* For details on the Linux process table, see the description of
+ 	* /proc/PID/stat in Documentation/filesystems/proc.txt in the Linux source
+ 	* code.
+ 	*/
+
 	int32 *ppid;
 	int32 pid;
 	int length;
@@ -388,20 +372,19 @@ get_proctab(FuncCallContext *funcctx, char **values)
 	/* rss */
 	GET_NEXT_VALUE(p, q, values[i_rss], length, "rss not found", ' ');
 
-	p = skip_token(p);			/* skip rlim */
-	p = skip_token(p);			/* skip startcode */
-	p = skip_token(p);			/* skip endcode */
-	p = skip_token(p);			/* skip startstack */
-	p = skip_token(p);			/* skip kstkesp */
-	p = skip_token(p);			/* skip kstkeip */
-	p = skip_token(p);			/* skip signal (obsolete) */
-	p = skip_token(p);			/* skip blocked (obsolete) */
-	p = skip_token(p);			/* skip sigignore (obsolete) */
-	p = skip_token(p);			/* skip sigcatch (obsolete) */
-	p = skip_token(p);			/* skip wchan */
-	p = skip_token(p);			/* skip nswap (place holder) */
-	p = skip_token(p);			/* skip cnswap (place holder) */
-	++p;
+	SKIP_TOKEN(p);			/* skip rlim */
+	SKIP_TOKEN(p);			/* skip startcode */
+	SKIP_TOKEN(p);			/* skip endcode */
+	SKIP_TOKEN(p);			/* skip startstack */
+	SKIP_TOKEN(p);			/* skip kstkesp */
+	SKIP_TOKEN(p);			/* skip kstkeip */
+	SKIP_TOKEN(p);			/* skip signal (obsolete) */
+	SKIP_TOKEN(p);			/* skip blocked (obsolete) */
+	SKIP_TOKEN(p);			/* skip sigignore (obsolete) */
+	SKIP_TOKEN(p);			/* skip sigcatch (obsolete) */
+	SKIP_TOKEN(p);			/* skip wchan */
+	SKIP_TOKEN(p);			/* skip nswap (place holder) */
+	SKIP_TOKEN(p);			/* skip cnswap (place holder) */
 
 	/* exit_signal */
 	GET_NEXT_VALUE(p, q, values[i_exit_signal], length,

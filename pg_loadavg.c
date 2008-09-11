@@ -15,20 +15,6 @@
 #include <executor/spi.h>
 #include "pg_common.h"
 
-#ifdef __linux__
-static inline char *skip_token(const char *);
-
-static inline char *
-skip_token(const char *p)
-{
-	while (isspace(*p))
-		p++;
-	while (*p && !isspace(*p))
-		p++;
-	return (char *) p;
-}
-#endif /* __linux__ */
-
 enum loadavg {i_load1, i_load5, i_load15, i_last_pid};
 
 int get_loadavg(char **);
@@ -157,8 +143,7 @@ get_loadavg(char **values)
 	/* load15 */
 	GET_NEXT_VALUE(p, q, values[i_load15], length, "load15 not found", ' ');
 
-	p = skip_token(p);			/* skip running/tasks */
-	++p;
+	SKIP_TOKEN(p);			/* skip running/tasks */
 
 	/* last_pid */
 	/*

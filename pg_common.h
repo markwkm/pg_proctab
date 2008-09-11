@@ -14,6 +14,7 @@ PG_MODULE_MAGIC;
 #define INTEGER_LEN 10
 
 #ifdef __linux__
+#include <ctype.h>
 #include <linux/magic.h>
 
 #define PROCFS "/proc"
@@ -28,6 +29,17 @@ PG_MODULE_MAGIC;
         strncpy(value, p, length); \
         value[length] = '\0'; \
         p = q + 1;
+
+#define SKIP_TOKEN(p) \
+		/* Skipping leading white space. */ \
+		while (isspace(*p)) \
+			p++; \
+		/* Skip token. */ \
+		while (*p && !isspace(*p)) \
+			p++; \
+		/* Skipping trailing white space. */ \
+		while (isspace(*p)) \
+			p++;
 #endif /* __linux__ */
 
 #endif /* _PG_COMMON_H_ */

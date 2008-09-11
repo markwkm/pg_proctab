@@ -15,20 +15,6 @@
 #include <executor/spi.h>
 #include "pg_common.h"
 
-#ifdef __linux__
-static inline char *skip_token(const char *);
-
-static inline char *
-skip_token(const char *p)
-{
-	while (isspace(*p))
-		p++;
-	while (*p && !isspace(*p))
-		p++;
-	return (char *) p;
-}
-#endif /* __linux__ */
-
 enum loadavg {i_user, i_nice, i_system, i_idle, i_iowait};
 
 int get_cputime(char **);
@@ -148,9 +134,7 @@ get_cputime(char **values)
 
 	p = buffer;
 
-	p = skip_token(p);			/* skip cpu */
-	++p;
-	++p;
+	SKIP_TOKEN(p);			/* skip cpu */
 
 	/* user */
 	GET_NEXT_VALUE(p, q, values[i_user], length, "user not found", ' ');

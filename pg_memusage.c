@@ -15,20 +15,6 @@
 #include <executor/spi.h>
 #include "pg_common.h"
 
-#ifdef __linux__
-static inline char *skip_token(const char *);
-
-static inline char *
-skip_token(const char *p)
-{
-	while (isspace(*p))
-		p++;
-	while (*p && !isspace(*p))
-		p++;
-	return (char *) p;
-}
-#endif /* __linux__ */
-
 enum loadavg {i_memused, i_memfree, i_memshared, i_membuffers, i_memcached,
 		i_swapused, i_swapfree, i_swapcached};
 
@@ -167,67 +153,51 @@ get_memusage(char **values)
 		++p;
 		if (strncmp(p, "Buffers:", 8) == 0)
 		{
-			p = skip_token(p);
-
-			while (p[0] == ' ')
-				++p;
+			SKIP_TOKEN(p);
 			GET_NEXT_VALUE(p, q, values[i_membuffers], length,
 					"Buffers not found", ' ');
 		}
 		else if (strncmp(p, "Cached:", 7) == 0)
 		{
-			p = skip_token(p);
-
-			while (p[0] == ' ')
-				++p;
+			SKIP_TOKEN(p);
 			GET_NEXT_VALUE(p, q, values[i_memcached], length,
 					"Cached not found", ' ');
 		}
 		else if (strncmp(p, "MemFree:", 8) == 0)
 		{
-			p = skip_token(p);
-
+			SKIP_TOKEN(p);
 			memfree = strtoul(p, &p, 10);
 			sprintf(values[i_memused], "%lu", memtotal - memfree);
 			sprintf(values[i_memfree], "%lu", memfree);
 		}
 		else if (strncmp(p, "MemShared:", 10) == 0)
 		{
-			p = skip_token(p);
-
-			while (p[0] == ' ')
-				++p;
+			SKIP_TOKEN(p);
 			GET_NEXT_VALUE(p, q, values[i_memshared], length,
 					"MemShared not found", ' ');
 		}
 		else if (strncmp(p, "MemTotal:", 9) == 0)
 		{
-			p = skip_token(p);
-
+			SKIP_TOKEN(p);
 			memtotal = strtoul(p, &p, 10);
 			elog(DEBUG5, "pg_memusage: MemTotal = %lu", memtotal);
 		}
 		else if (strncmp(p, "SwapFree:", 9) == 0)
 		{
-			p = skip_token(p);
-
+			SKIP_TOKEN(p);
 			swapfree = strtoul(p, &p, 10);
 			sprintf(values[i_swapused], "%lu", swaptotal - swapfree);
 			sprintf(values[i_swapfree], "%lu", swapfree);
 		}
 		else if (strncmp(p, "SwapCached:", 11) == 0)
 		{
-			p = skip_token(p);
-
-			while (p[0] == ' ')
-				++p;
+			SKIP_TOKEN(p);
 			GET_NEXT_VALUE(p, q, values[i_swapcached], length,
 					"SwapCached not found", ' ');
 		}
 		else if (strncmp(p, "SwapTotal:", 10) == 0)
 		{
-			p = skip_token(p);
-
+			SKIP_TOKEN(p);
 			swaptotal = strtoul(p, &p, 10);
 			elog(DEBUG5, "pg_memusage: SwapTotal = %lu", swaptotal);
 		}
