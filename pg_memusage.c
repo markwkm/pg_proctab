@@ -24,11 +24,7 @@ PG_MODULE_MAGIC;
 #ifdef __linux__
 #define PROCFS "/proc"
 
-#if 0
-#include <linux/proc_fs.h>
-#else
-#define PROC_SUPER_MAGIC 0x9fa0
-#endif
+#include <linux/magic.h>
 
 #define GET_NEXT_VALUE(p, q, value, length, msg, delim) \
 		if ((q = strchr(p, delim)) == NULL) \

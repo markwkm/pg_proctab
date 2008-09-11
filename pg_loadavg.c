@@ -15,11 +15,7 @@
 #include <executor/spi.h>
 
 #ifdef __linux__
-#if 0
-#include <linux/proc_fs.h>
-#else
-#define PROC_SUPER_MAGIC 0x9fa0
-#endif
+#include <linux/magic.h>
 
 #define PROCFS "/proc"
 
