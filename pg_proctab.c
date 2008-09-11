@@ -334,13 +334,9 @@ get_proctab(FuncCallContext *funcctx, char **values)
 
 		/* utime */
 	GET_NEXT_VALUE(p, q, values[i_utime], length, "utime not found", ' ');
-	sprintf(values[i_utime], "%f", (double) atol(values[i_utime]) /
-				(double) HZ);
 
 	/* stime */
 	GET_NEXT_VALUE(p, q, values[i_stime], length, "stime not found", ' ');
-	sprintf(values[i_stime], "%f", (double) atol(values[i_stime]) /
-			(double) HZ);
 
 	/* cutime */
 	GET_NEXT_VALUE(p, q, values[i_cutime], length, "cutime not found", ' ');
