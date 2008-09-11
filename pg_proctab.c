@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <sys/param.h>
 #include <executor/spi.h>
+#include "pg_common.h"
 
 #ifdef __linux__
 #include <ctype.h>
@@ -21,21 +22,6 @@
  * /proc/PID/stat in Documentation/filesystems/proc.txt in the Linux source
  * code.
  */
-
-#include <linux/magic.h>
-
-#define PROCFS "/proc"
-
-#define GET_NEXT_VALUE(p, q, value, length, msg, delim) \
-		if ((q = strchr(p, delim)) == NULL) \
-		{ \
-			elog(ERROR, msg); \
-			SRF_RETURN_DONE(funcctx); \
-		} \
-		length = q - p; \
-		strncpy(value, p, length); \
-		value[length] = '\0'; \
-		p = q + 1;
 
 static inline char *skip_token(const char *);
 
@@ -49,13 +35,6 @@ skip_token(const char *p)
 	return (char *) p;
 }
 #endif /* __linux__ */
-
-#ifdef PG_MODULE_MAGIC
-PG_MODULE_MAGIC;
-#endif
-
-#define INTEGER_LEN 10
-#define BIGINT_LEN 20
 
 #define FULLCOMM_LEN 1024
 

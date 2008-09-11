@@ -13,30 +13,9 @@
 #include <fcntl.h>
 #include <sys/param.h>
 #include <executor/spi.h>
-
-#ifdef PG_MODULE_MAGIC
-PG_MODULE_MAGIC;
-#endif
-
-#define BIGINT_LEN 20
-#define INTEGER_LEN 10
+#include "pg_common.h"
 
 #ifdef __linux__
-#define PROCFS "/proc"
-
-#include <linux/magic.h>
-
-#define GET_NEXT_VALUE(p, q, value, length, msg, delim) \
-		if ((q = strchr(p, delim)) == NULL) \
-		{ \
-			elog(ERROR, msg); \
-			SRF_RETURN_DONE(funcctx); \
-		} \
-		length = q - p; \
-		strncpy(value, p, length); \
-		value[length] = '\0'; \
-		p = q + 1;
-
 static inline char *skip_token(const char *);
 
 static inline char *
