@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2008 Mark Wong
- *
  */
 
 #include "postgres.h"
