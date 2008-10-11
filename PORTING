@@ -1,0 +1,4 @@
+To see declarations made by the gcc compiler, can be useful for determining
+platform specific declartions:
+
+    gcc -dM -E - < /dev/null
