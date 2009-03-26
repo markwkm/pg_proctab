@@ -215,7 +215,6 @@ get_proctab(FuncCallContext *funcctx, char **values)
 		elog(ERROR, "proc filesystem not mounted on " PROCFS "\n");
 		return 0;
 	}
-	chdir(PROCFS);
 
 	/* Read the stat info for the pid. */
 
@@ -267,7 +266,7 @@ get_proctab(FuncCallContext *funcctx, char **values)
 	}
 
 	/* Get the process table information for the pid. */
-	sprintf(buffer, "%d/stat", pid);
+	sprintf(buffer, "%s/%d/stat", PROCFS, pid);
 	fd = open(buffer, O_RDONLY);
 	if (fd == -1)
 	{
