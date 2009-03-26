@@ -101,7 +101,6 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 			{
 				tuple = tuptable->vals[i];
 				ppid[i] = atoi(SPI_getvalue(tuple, tupdesc, 1));
-				elog(DEBUG5, "pg_proctab: saving pid %d.", ppid[i]);
 			}
 		}
 		else
@@ -416,38 +415,63 @@ get_proctab(FuncCallContext *funcctx, char **values)
 	}
 #endif /* __linux__ */
 
-	elog(DEBUG5, "pg_proctab: uid %s", values[i_uid]);
-	elog(DEBUG5, "pg_proctab: username %s", values[i_username]);
-	elog(DEBUG5, "pg_proctab: pid = %s", values[i_pid]);
-	elog(DEBUG5, "pg_proctab: comm = %s", values[i_comm]);
-	elog(DEBUG5, "pg_proctab: state = %s", values[i_state]);
-	elog(DEBUG5, "pg_proctab: ppid = %s", values[i_ppid]);
-	elog(DEBUG5, "pg_proctab: pgrp = %s", values[i_pgrp]);
-	elog(DEBUG5, "pg_proctab: session = %s", values[i_session]);
-	elog(DEBUG5, "pg_proctab: tty_nr = %s", values[i_tty_nr]);
-	elog(DEBUG5, "pg_proctab: tpgid = %s", values[i_tpgid]);
-	elog(DEBUG5, "pg_proctab: flags = %s", values[i_flags]);
-	elog(DEBUG5, "pg_proctab: minflt = %s", values[i_minflt]);
-	elog(DEBUG5, "pg_proctab: cminflt = %s", values[i_cminflt]);
-	elog(DEBUG5, "pg_proctab: majflt = %s", values[i_majflt]);
-	elog(DEBUG5, "pg_proctab: cmajflt = %s", values[i_cmajflt]);
-	elog(DEBUG5, "pg_proctab: utime = %s", values[i_utime]);
-	elog(DEBUG5, "pg_proctab: stime = %s", values[i_stime]);
-	elog(DEBUG5, "pg_proctab: cutime = %s", values[i_cutime]);
-	elog(DEBUG5, "pg_proctab: cstime = %s", values[i_cstime]);
-	elog(DEBUG5, "pg_proctab: priority = %s", values[i_priority]);
-	elog(DEBUG5, "pg_proctab: nice = %s", values[i_nice]);
-	elog(DEBUG5, "pg_proctab: num_threads = %s", values[i_num_threads]);
-	elog(DEBUG5, "pg_proctab: itrealvalue = %s", values[i_itrealvalue]);
-	elog(DEBUG5, "pg_proctab: starttime = %s", values[i_starttime]);
-	elog(DEBUG5, "pg_proctab: vsize = %s", values[i_vsize]);
-	elog(DEBUG5, "pg_proctab: rss = %s", values[i_rss]);
-	elog(DEBUG5, "pg_proctab: exit_signal = %s", values[i_exit_signal]);
-	elog(DEBUG5, "pg_proctab: processor = %s", values[i_processor]);
-	elog(DEBUG5, "pg_proctab: rt_priority = %s", values[i_rt_priority]);
-	elog(DEBUG5, "pg_proctab: policy = %s", values[i_policy]);
-	elog(DEBUG5, "pg_proctab: delayacct_blkio_ticks = %s",
-			values[i_delayacct_blkio_ticks]);
+	elog(DEBUG5, "pg_proctab: [%d] uid %s", (int) i_uid, values[i_uid]);
+	elog(DEBUG5, "pg_proctab: [%d] username %s", (int) i_username,
+			values[i_username]);
+	elog(DEBUG5, "pg_proctab: [%d] pid = %s", (int) i_pid, values[i_pid]);
+	elog(DEBUG5, "pg_proctab: [%d] comm = %s", (int) i_comm, values[i_comm]);
+	elog(DEBUG5, "pg_proctab: [%d] fullcomm = %s", (int) i_fullcomm,
+			values[i_fullcomm]);
+	elog(DEBUG5, "pg_proctab: [%d] state = %s", (int) i_state,
+			values[i_state]);
+	elog(DEBUG5, "pg_proctab: [%d] ppid = %s", (int) i_ppid, values[i_ppid]);
+	elog(DEBUG5, "pg_proctab: [%d] pgrp = %s", (int) i_pgrp, values[i_pgrp]);
+	elog(DEBUG5, "pg_proctab: [%d] session = %s", (int) i_session,
+			values[i_session]);
+	elog(DEBUG5, "pg_proctab: [%d] tty_nr = %s", (int) i_tty_nr,
+			values[i_tty_nr]);
+	elog(DEBUG5, "pg_proctab: [%d] tpgid = %s", (int) i_tpgid,
+			values[i_tpgid]);
+	elog(DEBUG5, "pg_proctab: [%d] flags = %s", (int) i_flags,
+			values[i_flags]);
+	elog(DEBUG5, "pg_proctab: [%d] minflt = %s", (int) i_minflt,
+			values[i_minflt]);
+	elog(DEBUG5, "pg_proctab: [%d] cminflt = %s", (int) i_cminflt,
+			values[i_cminflt]);
+	elog(DEBUG5, "pg_proctab: [%d] majflt = %s", (int) i_majflt,
+			values[i_majflt]);
+	elog(DEBUG5, "pg_proctab: [%d] cmajflt = %s", (int) i_cmajflt,
+			values[i_cmajflt]);
+	elog(DEBUG5, "pg_proctab: [%d] utime = %s", (int) i_utime,
+			values[i_utime]);
+	elog(DEBUG5, "pg_proctab: [%d] stime = %s", (int) i_stime,
+			values[i_stime]);
+	elog(DEBUG5, "pg_proctab: [%d] cutime = %s", (int) i_cutime,
+			values[i_cutime]);
+	elog(DEBUG5, "pg_proctab: [%d] cstime = %s", (int) i_cstime,
+			values[i_cstime]);
+	elog(DEBUG5, "pg_proctab: [%d] priority = %s", (int) i_priority,
+			values[i_priority]);
+	elog(DEBUG5, "pg_proctab: [%d] nice = %s", (int) i_nice, values[i_nice]);
+	elog(DEBUG5, "pg_proctab: [%d] num_threads = %s", (int) i_num_threads,
+			values[i_num_threads]);
+	elog(DEBUG5, "pg_proctab: [%d] itrealvalue = %s", (int) i_itrealvalue,
+			values[i_itrealvalue]);
+	elog(DEBUG5, "pg_proctab: [%d] starttime = %s", (int) i_starttime,
+			values[i_starttime]);
+	elog(DEBUG5, "pg_proctab: [%d] vsize = %s", (int) i_vsize,
+			values[i_vsize]);
+	elog(DEBUG5, "pg_proctab: [%d] rss = %s", (int) i_rss, values[i_rss]);
+	elog(DEBUG5, "pg_proctab: [%d] exit_signal = %s", (int) i_exit_signal,
+			values[i_exit_signal]);
+	elog(DEBUG5, "pg_proctab: [%d] processor = %s", (int) i_processor,
+			values[i_processor]);
+	elog(DEBUG5, "pg_proctab: [%d] rt_priority = %s", (int) i_rt_priority,
+			values[i_rt_priority]);
+	elog(DEBUG5, "pg_proctab: [%d] policy = %s", (int) i_policy,
+			values[i_policy]);
+	elog(DEBUG5, "pg_proctab: [%d] delayacct_blkio_ticks = %s",
+			(int) i_delayacct_blkio_ticks, values[i_delayacct_blkio_ticks]);
 
 	return 1;
 }
