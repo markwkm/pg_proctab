@@ -20,12 +20,29 @@
 		"SELECT procpid " \
 		"FROM pg_stat_activity"
 
+#ifdef __linux__
+#define GET_VALUE(value) \
+		p = strchr(p, ':'); \
+		++p; \
+		++p; \
+		q = strchr(p, '\n'); \
+		len = q - p; \
+		if (len >= BIGINT_LEN) \
+		{ \
+			elog(ERROR, "value is larger than the buffer: %d\n", __LINE__); \
+			return 0; \
+		} \
+		strncpy(value, p, len); \
+		value[len] = '\0';
+#endif /* __linux__ */
+
 enum proctab {i_pid, i_comm, i_fullcomm, i_state, i_ppid, i_pgrp, i_session,
 		i_tty_nr, i_tpgid, i_flags, i_minflt, i_cminflt, i_majflt, i_cmajflt,
 		i_utime, i_stime, i_cutime, i_cstime, i_priority, i_nice,
 		i_num_threads, i_itrealvalue, i_starttime, i_vsize, i_rss,
 		i_exit_signal, i_processor, i_rt_priority, i_policy,
-		i_delayacct_blkio_ticks, i_uid, i_username};
+		i_delayacct_blkio_ticks, i_uid, i_username, i_rchar, i_wchar, i_syscr,
+		i_syscw, i_reads, i_writes, i_cwrites};
 
 int get_proctab(FuncCallContext *, char **);
 
@@ -129,7 +146,7 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 
 		char **values = NULL;
 
-		values = (char **) palloc(32 * sizeof(char *));
+		values = (char **) palloc(39 * sizeof(char *));
 		values[i_pid] = (char *) palloc((INTEGER_LEN + 1) * sizeof(char));
 		values[i_comm] = (char *) palloc(1024 * sizeof(char));
 		values[i_state] = (char *) palloc(2 * sizeof(char));
@@ -168,6 +185,13 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		values[i_delayacct_blkio_ticks] =
 				(char *) palloc((BIGINT_LEN + 1) * sizeof(char));
 		values[i_uid] = (char *) palloc((INTEGER_LEN + 1) * sizeof(char));
+		values[i_rchar] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+		values[i_wchar] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+		values[i_syscr] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+		values[i_syscw] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+		values[i_reads] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+		values[i_writes] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+		values[i_cwrites] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
 
 		if (get_proctab(funcctx, values) == 0)
 			SRF_RETURN_DONE(funcctx);
@@ -412,6 +436,38 @@ get_proctab(FuncCallContext *funcctx, char **values)
 		GET_NEXT_VALUE(p, q, values[i_delayacct_blkio_ticks], length,
 				"delayacct_blkio_ticks not found", ' ');
 	}
+
+	/* Get i/o stats per process. */
+
+	sprintf(buffer, "%s/%d/io", PROCFS, pid);
+	fd = open(buffer, O_RDONLY);
+	if (fd == -1)
+	{
+		/* If the i/o stats are not available, set the values to zero. */
+		elog(NOTICE, "i/o stats collection for Linux not enabled");
+		strcpy(values[i_rchar], "0");
+		strcpy(values[i_wchar], "0");
+		strcpy(values[i_syscr], "0");
+		strcpy(values[i_syscw], "0");
+		strcpy(values[i_reads], "0");
+		strcpy(values[i_writes], "0");
+		strcpy(values[i_cwrites], "0");
+	}
+	else
+	{
+		len = read(fd, buffer, sizeof(buffer) - 1);
+		close(fd);
+		buffer[len] = '\0';
+		p = buffer;
+		GET_VALUE(values[i_rchar]);
+		GET_VALUE(values[i_wchar]);
+		GET_VALUE(values[i_syscr]);
+		GET_VALUE(values[i_syscw]);
+		GET_VALUE(values[i_reads]);
+		GET_VALUE(values[i_writes]);
+		GET_VALUE(values[i_cwrites]);
+	}
+
 #endif /* __linux__ */
 
 	elog(DEBUG5, "pg_proctab: [%d] uid %s", (int) i_uid, values[i_uid]);
@@ -471,6 +527,20 @@ get_proctab(FuncCallContext *funcctx, char **values)
 			values[i_policy]);
 	elog(DEBUG5, "pg_proctab: [%d] delayacct_blkio_ticks = %s",
 			(int) i_delayacct_blkio_ticks, values[i_delayacct_blkio_ticks]);
+	elog(DEBUG5, "pg_proctab: [%d] rchar = %s", (int) i_rchar,
+			values[i_rchar]);
+	elog(DEBUG5, "pg_proctab: [%d] wchar = %s", (int) i_wchar,
+			values[i_wchar]);
+	elog(DEBUG5, "pg_proctab: [%d] syscr = %s", (int) i_syscr,
+			values[i_syscr]);
+	elog(DEBUG5, "pg_proctab: [%d] syscw = %s", (int) i_syscw,
+			values[i_syscw]);
+	elog(DEBUG5, "pg_proctab: [%d] reads = %s", (int) i_reads,
+			values[i_reads]);
+	elog(DEBUG5, "pg_proctab: [%d] writes = %s", (int) i_writes,
+			values[i_writes]);
+	elog(DEBUG5, "pg_proctab: [%d] cwrites = %s", (int) i_cwrites,
+			values[i_cwrites]);
 
 	return 1;
 }

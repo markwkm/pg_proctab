@@ -31,7 +31,14 @@ CREATE OR REPLACE FUNCTION pg_proctab(
 		OUT policy BIGINT,
 		OUT delayacct_blkio_ticks BIGINT,
 		OUT uid INTEGER,
-		OUT username VARCHAR)
+		OUT username VARCHAR,
+		OUT rchar BIGINT,
+		OUT wchar BIGINT,
+		OUT syscr BIGINT,
+		OUT syscw BIGINT,
+		OUT reads BIGINT,
+		OUT writes BIGINT,
+		OUT cwrites BIGINT)
 RETURNS SETOF record
 AS 'MODULE_PATHNAME', 'pg_proctab'
 LANGUAGE C IMMUTABLE STRICT;
