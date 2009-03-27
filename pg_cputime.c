@@ -120,7 +120,7 @@ get_cputime(char **values)
 		return 0;
 	}
 
-	sprintf(buffer, "%s/stat", PROCFS);
+	snprintf(buffer, sizeof(buffer) - 1, "%s/stat", PROCFS);
 	fd = open(buffer, O_RDONLY);
 	if (fd == -1)
 	{
@@ -152,11 +152,13 @@ get_cputime(char **values)
 	GET_NEXT_VALUE(p, q, values[i_iowait], length, "iowait not found", ' ');
 #endif /* __linux__ */
 
-	elog(DEBUG5, "pg_cputime: user = %s", values[i_user]);
-	elog(DEBUG5, "pg_cputime: nice = %s", values[i_nice]);
-	elog(DEBUG5, "pg_cputime: system = %s", values[i_system]);
-	elog(DEBUG5, "pg_cputime: idle = %s", values[i_idle]);
-	elog(DEBUG5, "pg_cputime: iowait = %s", values[i_iowait]);
+	elog(DEBUG5, "pg_cputime: [%d] user = %s", (int) i_user, values[i_user]);
+	elog(DEBUG5, "pg_cputime: [%d] nice = %s", (int) i_nice, values[i_nice]);
+	elog(DEBUG5, "pg_cputime: [%d] system = %s", (int) i_system,
+			values[i_system]);
+	elog(DEBUG5, "pg_cputime: [%d] idle = %s", (int) i_idle, values[i_idle]);
+	elog(DEBUG5, "pg_cputime: [%d] iowait = %s", (int) i_iowait,
+			values[i_iowait]);
 
 	return 1;
 }

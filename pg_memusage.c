@@ -132,7 +132,7 @@ get_memusage(char **values)
 		return 0;
 	}
 
-	sprintf(buffer, "%s/meminfo", PROCFS);
+	snprintf(buffer, sizeof(buffer) - 1, "%s/meminfo", PROCFS);
 	fd = open(buffer, O_RDONLY);
 	if (fd == -1)
 	{
@@ -167,8 +167,8 @@ get_memusage(char **values)
 		{
 			SKIP_TOKEN(p);
 			memfree = strtoul(p, &p, 10);
-			sprintf(values[i_memused], "%lu", memtotal - memfree);
-			sprintf(values[i_memfree], "%lu", memfree);
+			snprintf(values[i_memused], BIGINT_LEN, "%lu", memtotal - memfree);
+			snprintf(values[i_memfree], BIGINT_LEN, "%lu", memfree);
 		}
 		else if (strncmp(p, "MemShared:", 10) == 0)
 		{
@@ -186,8 +186,9 @@ get_memusage(char **values)
 		{
 			SKIP_TOKEN(p);
 			swapfree = strtoul(p, &p, 10);
-			sprintf(values[i_swapused], "%lu", swaptotal - swapfree);
-			sprintf(values[i_swapfree], "%lu", swapfree);
+			snprintf(values[i_swapused], BIGINT_LEN, "%lu",
+					swaptotal - swapfree);
+			snprintf(values[i_swapfree], BIGINT_LEN, "%lu", swapfree);
 		}
 		else if (strncmp(p, "SwapCached:", 11) == 0)
 		{
@@ -205,14 +206,22 @@ get_memusage(char **values)
 	}
 #endif /* __linux__ */
 
-	elog(DEBUG5, "pg_memusage: Buffers = %s", values[i_membuffers]);
-	elog(DEBUG5, "pg_memusage: Cached = %s", values[i_memcached]);
-	elog(DEBUG5, "pg_memusage: MemFree = %s", values[i_memfree]);
-	elog(DEBUG5, "pg_memusage: MemUsed = %s", values[i_memused]);
-	elog(DEBUG5, "pg_memusage: MemShared = %s", values[i_memshared]);
-	elog(DEBUG5, "pg_memusage: SwapCached = %s", values[i_swapcached]);
-	elog(DEBUG5, "pg_memusage: SwapFree = %s", values[i_swapfree]);
-	elog(DEBUG5, "pg_memusage: SwapUsed = %s", values[i_swapused]);
+	elog(DEBUG5, "pg_memusage: [%d] Buffers = %s", (int) i_membuffers,
+			values[i_membuffers]);
+	elog(DEBUG5, "pg_memusage: [%d] Cached = %s", (int) i_memcached,
+			values[i_memcached]);
+	elog(DEBUG5, "pg_memusage: [%d] MemFree = %s", (int) i_memfree,
+			values[i_memfree]);
+	elog(DEBUG5, "pg_memusage: [%d] MemUsed = %s", (int) i_memused,
+			values[i_memused]);
+	elog(DEBUG5, "pg_memusage: [%d] MemShared = %s", (int) i_memshared,
+			values[i_memshared]);
+	elog(DEBUG5, "pg_memusage: [%d] SwapCached = %s", (int) i_swapcached,
+			values[i_swapcached]);
+	elog(DEBUG5, "pg_memusage: [%d] SwapFree = %s", (int) i_swapfree,
+			values[i_swapfree]);
+	elog(DEBUG5, "pg_memusage: [%d] SwapUsed = %s", (int) i_swapused,
+			values[i_swapused]);
 
 	return 1;
 }

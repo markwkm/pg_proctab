@@ -120,7 +120,7 @@ get_loadavg(char **values)
 		return 0;
 	}
 
-	sprintf(buffer, "%s/loadavg", PROCFS);
+	snprintf(buffer, sizeof(buffer) - 1, "%s/loadavg", PROCFS);
 	fd = open(buffer, O_RDONLY);
 	if (fd == -1)
 	{
@@ -164,10 +164,14 @@ get_loadavg(char **values)
 	}
 #endif /* __linux__ */
 
-	elog(DEBUG5, "pg_loadavg: load1 = %s", values[i_load1]);
-	elog(DEBUG5, "pg_loadavg: load5 = %s", values[i_load5]);
-	elog(DEBUG5, "pg_loadavg: load15 = %s", values[i_load15]);
-	elog(DEBUG5, "pg_loadavg: last_pid = %s", values[i_last_pid]);
+	elog(DEBUG5, "pg_loadavg: [%d] load1 = %s", (int) i_load1,
+			values[i_load1]);
+	elog(DEBUG5, "pg_loadavg: [%d] load5 = %s", (int) i_load5,
+			values[i_load5]);
+	elog(DEBUG5, "pg_loadavg: [%d] load15 = %s", (int) i_load15,
+			values[i_load15]);
+	elog(DEBUG5, "pg_loadavg: [%d] last_pid = %s", (int) i_last_pid,
+			values[i_last_pid]);
 
 	return 1;
 }

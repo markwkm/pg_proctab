@@ -20,12 +20,29 @@
 		"SELECT procpid " \
 		"FROM pg_stat_activity"
 
+#ifdef __linux__
+#define GET_VALUE(value) \
+		p = strchr(p, ':'); \
+		++p; \
+		++p; \
+		q = strchr(p, '\n'); \
+		len = q - p; \
+		if (len >= BIGINT_LEN) \
+		{ \
+			elog(ERROR, "value is larger than the buffer: %d\n", __LINE__); \
+			return 0; \
+		} \
+		strncpy(value, p, len); \
+		value[len] = '\0';
+#endif /* __linux__ */
+
 enum proctab {i_pid, i_comm, i_fullcomm, i_state, i_ppid, i_pgrp, i_session,
 		i_tty_nr, i_tpgid, i_flags, i_minflt, i_cminflt, i_majflt, i_cmajflt,
 		i_utime, i_stime, i_cutime, i_cstime, i_priority, i_nice,
 		i_num_threads, i_itrealvalue, i_starttime, i_vsize, i_rss,
 		i_exit_signal, i_processor, i_rt_priority, i_policy,
-		i_delayacct_blkio_ticks, i_uid, i_username};
+		i_delayacct_blkio_ticks, i_uid, i_username, i_rchar, i_wchar, i_syscr,
+		i_syscw, i_reads, i_writes, i_cwrites};
 
 int get_proctab(FuncCallContext *, char **);
 
@@ -101,7 +118,6 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 			{
 				tuple = tuptable->vals[i];
 				ppid[i] = atoi(SPI_getvalue(tuple, tupdesc, 1));
-				elog(DEBUG5, "pg_proctab: saving pid %d.", ppid[i]);
 			}
 		}
 		else
@@ -130,7 +146,7 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 
 		char **values = NULL;
 
-		values = (char **) palloc(32 * sizeof(char *));
+		values = (char **) palloc(39 * sizeof(char *));
 		values[i_pid] = (char *) palloc((INTEGER_LEN + 1) * sizeof(char));
 		values[i_comm] = (char *) palloc(1024 * sizeof(char));
 		values[i_state] = (char *) palloc(2 * sizeof(char));
@@ -169,6 +185,13 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 		values[i_delayacct_blkio_ticks] =
 				(char *) palloc((BIGINT_LEN + 1) * sizeof(char));
 		values[i_uid] = (char *) palloc((INTEGER_LEN + 1) * sizeof(char));
+		values[i_rchar] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+		values[i_wchar] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+		values[i_syscr] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+		values[i_syscw] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+		values[i_reads] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+		values[i_writes] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
+		values[i_cwrites] = (char *) palloc((BIGINT_LEN + 1) * sizeof(char));
 
 		if (get_proctab(funcctx, values) == 0)
 			SRF_RETURN_DONE(funcctx);
@@ -216,7 +239,6 @@ get_proctab(FuncCallContext *funcctx, char **values)
 		elog(ERROR, "proc filesystem not mounted on " PROCFS "\n");
 		return 0;
 	}
-	chdir(PROCFS);
 
 	/* Read the stat info for the pid. */
 
@@ -226,7 +248,7 @@ get_proctab(FuncCallContext *funcctx, char **values)
 				funcctx->call_cntr, pid);
 
 	/* Get the full command line information. */
-	sprintf(buffer, "%s/%d/cmdline", PROCFS, pid);
+	snprintf(buffer, sizeof(buffer) - 1, "%s/%d/cmdline", PROCFS, pid);
 	fd = open(buffer, O_RDONLY);
 	if (fd == -1)
 	{
@@ -244,18 +266,18 @@ get_proctab(FuncCallContext *funcctx, char **values)
 	elog(DEBUG5, "pg_proctab: %s %s", buffer, values[i_fullcomm]);
 
 	/* Get the uid and username of the pid's owner. */
-	sprintf(buffer, "%s/%d", PROCFS, pid);
+	snprintf(buffer, sizeof(buffer) - 1, "%s/%d", PROCFS, pid);
 	if (stat(buffer, &stat_struct) < 0)
 	{
 		elog(ERROR, "'%s' not found", buffer);
-		strcpy(values[i_uid], "-1");
+		strncpy(values[i_uid], "-1", INTEGER_LEN);
 		values[i_username] = NULL;
 	}
 	else
 	{
 		struct passwd *pwd;
 
-		sprintf(values[i_uid], "%d", stat_struct.st_uid);
+		snprintf(values[i_uid], INTEGER_LEN, "%d", stat_struct.st_uid);
 		pwd = getpwuid(stat_struct.st_uid);
 		if (pwd == NULL)
 			values[i_username] = NULL;
@@ -263,12 +285,13 @@ get_proctab(FuncCallContext *funcctx, char **values)
 		{
 			values[i_username] = (char *) palloc((strlen(pwd->pw_name) +
 					1) * sizeof(char));
-			strcpy(values[i_username], pwd->pw_name);
+			strncpy(values[i_username], pwd->pw_name,
+					sizeof(values[i_username]) - 1);
 		}
 	}
 
 	/* Get the process table information for the pid. */
-	sprintf(buffer, "%d/stat", pid);
+	snprintf(buffer, sizeof(buffer) - 1, "%s/%d/stat", PROCFS, pid);
 	fd = open(buffer, O_RDONLY);
 	if (fd == -1)
 	{
@@ -414,40 +437,111 @@ get_proctab(FuncCallContext *funcctx, char **values)
 		GET_NEXT_VALUE(p, q, values[i_delayacct_blkio_ticks], length,
 				"delayacct_blkio_ticks not found", ' ');
 	}
+
+	/* Get i/o stats per process. */
+
+	snprintf(buffer, sizeof(buffer) - 1, "%s/%d/io", PROCFS, pid);
+	fd = open(buffer, O_RDONLY);
+	if (fd == -1)
+	{
+		/* If the i/o stats are not available, set the values to zero. */
+		elog(NOTICE, "i/o stats collection for Linux not enabled");
+		strncpy(values[i_rchar], "0", BIGINT_LEN);
+		strncpy(values[i_wchar], "0", BIGINT_LEN);
+		strncpy(values[i_syscr], "0", BIGINT_LEN);
+		strncpy(values[i_syscw], "0", BIGINT_LEN);
+		strncpy(values[i_reads], "0", BIGINT_LEN);
+		strncpy(values[i_writes], "0", BIGINT_LEN);
+		strncpy(values[i_cwrites], "0", BIGINT_LEN);
+	}
+	else
+	{
+		len = read(fd, buffer, sizeof(buffer) - 1);
+		close(fd);
+		buffer[len] = '\0';
+		p = buffer;
+		GET_VALUE(values[i_rchar]);
+		GET_VALUE(values[i_wchar]);
+		GET_VALUE(values[i_syscr]);
+		GET_VALUE(values[i_syscw]);
+		GET_VALUE(values[i_reads]);
+		GET_VALUE(values[i_writes]);
+		GET_VALUE(values[i_cwrites]);
+	}
+
 #endif /* __linux__ */
 
-	elog(DEBUG5, "pg_proctab: uid %s", values[i_uid]);
-	elog(DEBUG5, "pg_proctab: username %s", values[i_username]);
-	elog(DEBUG5, "pg_proctab: pid = %s", values[i_pid]);
-	elog(DEBUG5, "pg_proctab: comm = %s", values[i_comm]);
-	elog(DEBUG5, "pg_proctab: state = %s", values[i_state]);
-	elog(DEBUG5, "pg_proctab: ppid = %s", values[i_ppid]);
-	elog(DEBUG5, "pg_proctab: pgrp = %s", values[i_pgrp]);
-	elog(DEBUG5, "pg_proctab: session = %s", values[i_session]);
-	elog(DEBUG5, "pg_proctab: tty_nr = %s", values[i_tty_nr]);
-	elog(DEBUG5, "pg_proctab: tpgid = %s", values[i_tpgid]);
-	elog(DEBUG5, "pg_proctab: flags = %s", values[i_flags]);
-	elog(DEBUG5, "pg_proctab: minflt = %s", values[i_minflt]);
-	elog(DEBUG5, "pg_proctab: cminflt = %s", values[i_cminflt]);
-	elog(DEBUG5, "pg_proctab: majflt = %s", values[i_majflt]);
-	elog(DEBUG5, "pg_proctab: cmajflt = %s", values[i_cmajflt]);
-	elog(DEBUG5, "pg_proctab: utime = %s", values[i_utime]);
-	elog(DEBUG5, "pg_proctab: stime = %s", values[i_stime]);
-	elog(DEBUG5, "pg_proctab: cutime = %s", values[i_cutime]);
-	elog(DEBUG5, "pg_proctab: cstime = %s", values[i_cstime]);
-	elog(DEBUG5, "pg_proctab: priority = %s", values[i_priority]);
-	elog(DEBUG5, "pg_proctab: nice = %s", values[i_nice]);
-	elog(DEBUG5, "pg_proctab: num_threads = %s", values[i_num_threads]);
-	elog(DEBUG5, "pg_proctab: itrealvalue = %s", values[i_itrealvalue]);
-	elog(DEBUG5, "pg_proctab: starttime = %s", values[i_starttime]);
-	elog(DEBUG5, "pg_proctab: vsize = %s", values[i_vsize]);
-	elog(DEBUG5, "pg_proctab: rss = %s", values[i_rss]);
-	elog(DEBUG5, "pg_proctab: exit_signal = %s", values[i_exit_signal]);
-	elog(DEBUG5, "pg_proctab: processor = %s", values[i_processor]);
-	elog(DEBUG5, "pg_proctab: rt_priority = %s", values[i_rt_priority]);
-	elog(DEBUG5, "pg_proctab: policy = %s", values[i_policy]);
-	elog(DEBUG5, "pg_proctab: delayacct_blkio_ticks = %s",
-			values[i_delayacct_blkio_ticks]);
+	elog(DEBUG5, "pg_proctab: [%d] uid %s", (int) i_uid, values[i_uid]);
+	elog(DEBUG5, "pg_proctab: [%d] username %s", (int) i_username,
+			values[i_username]);
+	elog(DEBUG5, "pg_proctab: [%d] pid = %s", (int) i_pid, values[i_pid]);
+	elog(DEBUG5, "pg_proctab: [%d] comm = %s", (int) i_comm, values[i_comm]);
+	elog(DEBUG5, "pg_proctab: [%d] fullcomm = %s", (int) i_fullcomm,
+			values[i_fullcomm]);
+	elog(DEBUG5, "pg_proctab: [%d] state = %s", (int) i_state,
+			values[i_state]);
+	elog(DEBUG5, "pg_proctab: [%d] ppid = %s", (int) i_ppid, values[i_ppid]);
+	elog(DEBUG5, "pg_proctab: [%d] pgrp = %s", (int) i_pgrp, values[i_pgrp]);
+	elog(DEBUG5, "pg_proctab: [%d] session = %s", (int) i_session,
+			values[i_session]);
+	elog(DEBUG5, "pg_proctab: [%d] tty_nr = %s", (int) i_tty_nr,
+			values[i_tty_nr]);
+	elog(DEBUG5, "pg_proctab: [%d] tpgid = %s", (int) i_tpgid,
+			values[i_tpgid]);
+	elog(DEBUG5, "pg_proctab: [%d] flags = %s", (int) i_flags,
+			values[i_flags]);
+	elog(DEBUG5, "pg_proctab: [%d] minflt = %s", (int) i_minflt,
+			values[i_minflt]);
+	elog(DEBUG5, "pg_proctab: [%d] cminflt = %s", (int) i_cminflt,
+			values[i_cminflt]);
+	elog(DEBUG5, "pg_proctab: [%d] majflt = %s", (int) i_majflt,
+			values[i_majflt]);
+	elog(DEBUG5, "pg_proctab: [%d] cmajflt = %s", (int) i_cmajflt,
+			values[i_cmajflt]);
+	elog(DEBUG5, "pg_proctab: [%d] utime = %s", (int) i_utime,
+			values[i_utime]);
+	elog(DEBUG5, "pg_proctab: [%d] stime = %s", (int) i_stime,
+			values[i_stime]);
+	elog(DEBUG5, "pg_proctab: [%d] cutime = %s", (int) i_cutime,
+			values[i_cutime]);
+	elog(DEBUG5, "pg_proctab: [%d] cstime = %s", (int) i_cstime,
+			values[i_cstime]);
+	elog(DEBUG5, "pg_proctab: [%d] priority = %s", (int) i_priority,
+			values[i_priority]);
+	elog(DEBUG5, "pg_proctab: [%d] nice = %s", (int) i_nice, values[i_nice]);
+	elog(DEBUG5, "pg_proctab: [%d] num_threads = %s", (int) i_num_threads,
+			values[i_num_threads]);
+	elog(DEBUG5, "pg_proctab: [%d] itrealvalue = %s", (int) i_itrealvalue,
+			values[i_itrealvalue]);
+	elog(DEBUG5, "pg_proctab: [%d] starttime = %s", (int) i_starttime,
+			values[i_starttime]);
+	elog(DEBUG5, "pg_proctab: [%d] vsize = %s", (int) i_vsize,
+			values[i_vsize]);
+	elog(DEBUG5, "pg_proctab: [%d] rss = %s", (int) i_rss, values[i_rss]);
+	elog(DEBUG5, "pg_proctab: [%d] exit_signal = %s", (int) i_exit_signal,
+			values[i_exit_signal]);
+	elog(DEBUG5, "pg_proctab: [%d] processor = %s", (int) i_processor,
+			values[i_processor]);
+	elog(DEBUG5, "pg_proctab: [%d] rt_priority = %s", (int) i_rt_priority,
+			values[i_rt_priority]);
+	elog(DEBUG5, "pg_proctab: [%d] policy = %s", (int) i_policy,
+			values[i_policy]);
+	elog(DEBUG5, "pg_proctab: [%d] delayacct_blkio_ticks = %s",
+			(int) i_delayacct_blkio_ticks, values[i_delayacct_blkio_ticks]);
+	elog(DEBUG5, "pg_proctab: [%d] rchar = %s", (int) i_rchar,
+			values[i_rchar]);
+	elog(DEBUG5, "pg_proctab: [%d] wchar = %s", (int) i_wchar,
+			values[i_wchar]);
+	elog(DEBUG5, "pg_proctab: [%d] syscr = %s", (int) i_syscr,
+			values[i_syscr]);
+	elog(DEBUG5, "pg_proctab: [%d] syscw = %s", (int) i_syscw,
+			values[i_syscw]);
+	elog(DEBUG5, "pg_proctab: [%d] reads = %s", (int) i_reads,
+			values[i_reads]);
+	elog(DEBUG5, "pg_proctab: [%d] writes = %s", (int) i_writes,
+			values[i_writes]);
+	elog(DEBUG5, "pg_proctab: [%d] cwrites = %s", (int) i_cwrites,
+			values[i_cwrites]);
 
 	return 1;
 }
