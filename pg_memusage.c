@@ -132,7 +132,7 @@ get_memusage(char **values)
 		return 0;
 	}
 
-	sprintf(buffer, "%s/meminfo", PROCFS);
+	snprintf(buffer, sizeof(buffer) - 1, "%s/meminfo", PROCFS);
 	fd = open(buffer, O_RDONLY);
 	if (fd == -1)
 	{
@@ -167,8 +167,8 @@ get_memusage(char **values)
 		{
 			SKIP_TOKEN(p);
 			memfree = strtoul(p, &p, 10);
-			sprintf(values[i_memused], "%lu", memtotal - memfree);
-			sprintf(values[i_memfree], "%lu", memfree);
+			snprintf(values[i_memused], BIGINT_LEN, "%lu", memtotal - memfree);
+			snprintf(values[i_memfree], BIGINT_LEN, "%lu", memfree);
 		}
 		else if (strncmp(p, "MemShared:", 10) == 0)
 		{
@@ -186,8 +186,9 @@ get_memusage(char **values)
 		{
 			SKIP_TOKEN(p);
 			swapfree = strtoul(p, &p, 10);
-			sprintf(values[i_swapused], "%lu", swaptotal - swapfree);
-			sprintf(values[i_swapfree], "%lu", swapfree);
+			snprintf(values[i_swapused], BIGINT_LEN, "%lu",
+					swaptotal - swapfree);
+			snprintf(values[i_swapfree], BIGINT_LEN, "%lu", swapfree);
 		}
 		else if (strncmp(p, "SwapCached:", 11) == 0)
 		{

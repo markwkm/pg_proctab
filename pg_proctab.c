@@ -248,7 +248,7 @@ get_proctab(FuncCallContext *funcctx, char **values)
 				funcctx->call_cntr, pid);
 
 	/* Get the full command line information. */
-	sprintf(buffer, "%s/%d/cmdline", PROCFS, pid);
+	snprintf(buffer, sizeof(buffer) - 1, "%s/%d/cmdline", PROCFS, pid);
 	fd = open(buffer, O_RDONLY);
 	if (fd == -1)
 	{
@@ -266,18 +266,18 @@ get_proctab(FuncCallContext *funcctx, char **values)
 	elog(DEBUG5, "pg_proctab: %s %s", buffer, values[i_fullcomm]);
 
 	/* Get the uid and username of the pid's owner. */
-	sprintf(buffer, "%s/%d", PROCFS, pid);
+	snprintf(buffer, sizeof(buffer) - 1, "%s/%d", PROCFS, pid);
 	if (stat(buffer, &stat_struct) < 0)
 	{
 		elog(ERROR, "'%s' not found", buffer);
-		strcpy(values[i_uid], "-1");
+		strncpy(values[i_uid], "-1", INTEGER_LEN);
 		values[i_username] = NULL;
 	}
 	else
 	{
 		struct passwd *pwd;
 
-		sprintf(values[i_uid], "%d", stat_struct.st_uid);
+		snprintf(values[i_uid], INTEGER_LEN, "%d", stat_struct.st_uid);
 		pwd = getpwuid(stat_struct.st_uid);
 		if (pwd == NULL)
 			values[i_username] = NULL;
@@ -285,12 +285,13 @@ get_proctab(FuncCallContext *funcctx, char **values)
 		{
 			values[i_username] = (char *) palloc((strlen(pwd->pw_name) +
 					1) * sizeof(char));
-			strcpy(values[i_username], pwd->pw_name);
+			strncpy(values[i_username], pwd->pw_name,
+					sizeof(values[i_username]) - 1);
 		}
 	}
 
 	/* Get the process table information for the pid. */
-	sprintf(buffer, "%s/%d/stat", PROCFS, pid);
+	snprintf(buffer, sizeof(buffer) - 1, "%s/%d/stat", PROCFS, pid);
 	fd = open(buffer, O_RDONLY);
 	if (fd == -1)
 	{
@@ -439,19 +440,19 @@ get_proctab(FuncCallContext *funcctx, char **values)
 
 	/* Get i/o stats per process. */
 
-	sprintf(buffer, "%s/%d/io", PROCFS, pid);
+	snprintf(buffer, sizeof(buffer) - 1, "%s/%d/io", PROCFS, pid);
 	fd = open(buffer, O_RDONLY);
 	if (fd == -1)
 	{
 		/* If the i/o stats are not available, set the values to zero. */
 		elog(NOTICE, "i/o stats collection for Linux not enabled");
-		strcpy(values[i_rchar], "0");
-		strcpy(values[i_wchar], "0");
-		strcpy(values[i_syscr], "0");
-		strcpy(values[i_syscw], "0");
-		strcpy(values[i_reads], "0");
-		strcpy(values[i_writes], "0");
-		strcpy(values[i_cwrites], "0");
+		strncpy(values[i_rchar], "0", BIGINT_LEN);
+		strncpy(values[i_wchar], "0", BIGINT_LEN);
+		strncpy(values[i_syscr], "0", BIGINT_LEN);
+		strncpy(values[i_syscw], "0", BIGINT_LEN);
+		strncpy(values[i_reads], "0", BIGINT_LEN);
+		strncpy(values[i_writes], "0", BIGINT_LEN);
+		strncpy(values[i_cwrites], "0", BIGINT_LEN);
 	}
 	else
 	{

@@ -120,7 +120,7 @@ get_loadavg(char **values)
 		return 0;
 	}
 
-	sprintf(buffer, "%s/loadavg", PROCFS);
+	snprintf(buffer, sizeof(buffer) - 1, "%s/loadavg", PROCFS);
 	fd = open(buffer, O_RDONLY);
 	if (fd == -1)
 	{

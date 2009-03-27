@@ -120,7 +120,7 @@ get_cputime(char **values)
 		return 0;
 	}
 
-	sprintf(buffer, "%s/stat", PROCFS);
+	snprintf(buffer, sizeof(buffer) - 1, "%s/stat", PROCFS);
 	fd = open(buffer, O_RDONLY);
 	if (fd == -1)
 	{
