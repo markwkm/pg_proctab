@@ -4,7 +4,8 @@ CREATE OR REPLACE FUNCTION pg_cputime(
 		OUT nice BIGINT,
 		OUT system BIGINT,
 		OUT idle BIGINT,
-		OUT iowait BIGINT)
+		OUT iowait BIGINT,
+		OUT swap BIGINT)
 RETURNS SETOF record
-AS 'MODULE_PATHNAME', 'pg_cputime'
+AS '$libdir/pg_cputime', 'pg_cputime'
 LANGUAGE C IMMUTABLE STRICT;

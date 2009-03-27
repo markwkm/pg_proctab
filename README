@@ -1,5 +1,9 @@
 Currently only testing Linux, but support for other platforms will be added.
 
+Why use cmake?  Because different platforms may need special linker flags in
+order to access the process table.  PGXS didn't have a way to modify the
+LDFLAGS when the MODULES directive is used.
+
 Install
 -------
 make
@@ -8,6 +12,11 @@ psql -f pg_proctab.sql
 psql -f pg_loadavg.sql
 psql -f pg_cputime.sql
 psql -f pg_memusage.sql
+
+Uninstall
+---------
+
+xargs rm < install_manifest.txt
 
 Examples
 --------

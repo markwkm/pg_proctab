@@ -9,5 +9,5 @@ CREATE OR REPLACE FUNCTION pg_memusage(
 		OUT swapfree BIGINT,
 		OUT swapcached BIGINT)
 RETURNS SETOF record
-AS 'MODULE_PATHNAME', 'pg_memusage'
+AS '$libdir/pg_memusage', 'pg_memusage'
 LANGUAGE C IMMUTABLE STRICT;

@@ -33,5 +33,5 @@ CREATE OR REPLACE FUNCTION pg_proctab(
 		OUT uid INTEGER,
 		OUT username VARCHAR)
 RETURNS SETOF record
-AS 'MODULE_PATHNAME', 'pg_proctab'
+AS '$libdir/pg_proctab', 'pg_proctab'
 LANGUAGE C IMMUTABLE STRICT;

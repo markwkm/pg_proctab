@@ -5,5 +5,5 @@ CREATE OR REPLACE FUNCTION pg_loadavg(
 		OUT load15 FLOAT,
 		OUT last_pid INTEGER)
 RETURNS SETOF record
-AS 'MODULE_PATHNAME', 'pg_loadavg'
+AS '$libdir/pg_loadavg', 'pg_loadavg'
 LANGUAGE C IMMUTABLE STRICT;
