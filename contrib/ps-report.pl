@@ -54,8 +54,8 @@ $sql = sprintf($temp, $snap1);
 $sql = sprintf($temp, $snap2);
 @a2 = split /\|/, `$psql "$sql"`;
 
-my $xact_commit = $a2[0] - $a1[0];
-my $xact_rollback = $a2[1] - $a1[1];
+my $xact_commit = $a2[1] - $a1[1];
+my $xact_rollback = $a2[2] - $a1[2];
 my $blks_read = $a2[3] - $a1[3];
 my $blks_hit = $a2[4] - $a1[4];
 
