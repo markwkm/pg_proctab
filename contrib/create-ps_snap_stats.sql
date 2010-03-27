@@ -1,10 +1,10 @@
-CREATE OR REPLACE FUNCTION ps_snap_stats() RETURNS BIGINT AS $$
+CREATE OR REPLACE FUNCTION ps_snap_stats(IN in_note TEXT) RETURNS BIGINT AS $$
 DECLARE
   	snapid BIGINT;
 BEGIN
 	-- Create the snapshot id.
-	INSERT INTO ps_snaps
-	DEFAULT VALUES
+	INSERT INTO ps_snaps(note)
+	VALUES(in_note)
 	RETURNING snap
 	INTO snapid;
 	RAISE DEBUG 'Creating snapshot: %', snapid;

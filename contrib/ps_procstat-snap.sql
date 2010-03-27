@@ -1,3 +1,3 @@
 BEGIN;
-SELECT ps_snap_stats();
+SELECT ps_snap_stats(NULL);
 COMMIT;
