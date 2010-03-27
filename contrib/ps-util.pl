@@ -9,19 +9,21 @@ use Getopt::Long;
 use Data::Dumper::Simple;
 $Data::Dumper::Indent	= 1;
 
-my ($db, $pid, $snap_1, $snap_2);
+my ($db, $list, $pid, $snap_1, $snap_2);
 
 GetOptions(
 	"db=s"	=> \$db,
+	"list"	=> \$list,
 	"pid=i"	=> \$pid,
 	"s1=i"	=> \$snap_1,
 	"s2=i"	=> \$snap_2,
 );
 
 #better way to do this?
-if ((! $pid) or (! $snap_1) or (! $snap_2)) {
+if ((! $list) and ((! $pid) or (! $snap_1) or (! $snap_2))) {
 	print <<USAGE
 	You must supply a process id and two snapshot ids:
+	Usage: $0 [-d=<database>] -list
 	Usage: $0 [-d=<database>] -p=<pid> -s1=<snap1> -s2=<snap2>
 USAGE
 ;
@@ -29,6 +31,13 @@ USAGE
 }
 
 $db	= "-d $db" if $db;
+
+if ($list) {
+	my $output = `psql $db -c "SELECT snap, time, note FROM ps_snaps ORDER BY time ASC"`;
+	print ("$output\n");
+	exit 0;
+}
+
 my $hz	= find_hz();
 print ("HERTZ: $hz\n");
 
