@@ -1,0 +1,13 @@
+{
+    "name": "pg_proctab",
+    "abstract": "Access operating system process table",
+    "version": "0.0.2",
+    "maintainer": "Mark Wong <markwkm@gmail.com>",
+    "license": "bsd",
+    "release_status": "testing",
+    "repository": {
+        "url": "git://git.postgresql.org/git/pg_proctab.git",
+        "web": "http://git.postgresql.org/gitweb?p=pg_proctab.git;a=summary",
+        "type": "git"
+    }
+}
