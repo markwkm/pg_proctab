@@ -16,9 +16,15 @@
 
 #define FULLCOMM_LEN 1024
 
+#ifdef PG91
 #define GET_PIDS \
 		"SELECT procpid " \
 		"FROM pg_stat_activity"
+#else
+#define GET_PIDS \
+		"SELECT pid " \
+		"FROM pg_stat_activity"
+#endif /* PG91 */
 
 #ifdef __linux__
 #define GET_VALUE(value) \
