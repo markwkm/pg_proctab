@@ -1,9 +1,0 @@
--- Copyright (C) 2008 Mark Wong
-CREATE OR REPLACE FUNCTION pg_loadavg(
-		OUT load1 FLOAT,
-		OUT load5 FLOAT,
-		OUT load15 FLOAT,
-		OUT last_pid INTEGER)
-RETURNS SETOF record
-AS 'MODULE_PATHNAME', 'pg_loadavg'
-LANGUAGE C IMMUTABLE STRICT;

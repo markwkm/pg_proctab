@@ -42,3 +42,35 @@ CREATE OR REPLACE FUNCTION pg_proctab(
 RETURNS SETOF record
 AS 'MODULE_PATHNAME', 'pg_proctab'
 LANGUAGE C IMMUTABLE STRICT;
+
+CREATE OR REPLACE FUNCTION pg_cputime(
+		OUT "user" BIGINT,
+		OUT nice BIGINT,
+		OUT system BIGINT,
+		OUT idle BIGINT,
+		OUT iowait BIGINT)
+RETURNS SETOF record
+AS 'MODULE_PATHNAME', 'pg_cputime'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE OR REPLACE FUNCTION pg_loadavg(
+		OUT load1 FLOAT,
+		OUT load5 FLOAT,
+		OUT load15 FLOAT,
+		OUT last_pid INTEGER)
+RETURNS SETOF record
+AS 'MODULE_PATHNAME', 'pg_loadavg'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE OR REPLACE FUNCTION pg_memusage(
+		OUT memused BIGINT,
+		OUT memfree BIGINT,
+		OUT memshared BIGINT,
+		OUT membuffers BIGINT,
+		OUT memcached BIGINT,
+		OUT swapused BIGINT,
+		OUT swapfree BIGINT,
+		OUT swapcached BIGINT)
+RETURNS SETOF record
+AS 'MODULE_PATHNAME', 'pg_memusage'
+LANGUAGE C IMMUTABLE STRICT;
