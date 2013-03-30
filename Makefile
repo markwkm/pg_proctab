@@ -21,7 +21,7 @@ endif
 # Determine the database version in order to build with the right queries.
 
 PG_VERSION := $(shell $(PG_CONFIG) --version | sed -n 's/PostgreSQL \([0-9]*\.[0-9]*\).*/\1/p')
-PG_VERSION_LT92 := $(shell expr $PG_VERSION '<' 9.2)
+PG_VERSION_LT92 = $(shell expr $(PG_VERSION) '<' 9.2)
 
 ifeq ($(PG_VERSION_LT92),1)
 PG_CPPFLAGS = -DPG91=1
