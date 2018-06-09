@@ -59,9 +59,9 @@ enum loadavg {i_load1, i_load5, i_load15, i_last_pid};
 enum memusage {i_memused, i_memfree, i_memshared, i_membuffers, i_memcached,
 		i_swapused, i_swapfree, i_swapcached};
 enum diskusage {i_major, i_minor, i_devname,
-        i_reads_completed, i_reads_merged, i_sectors_read, i_readtime, 
-        i_writes_completed, i_writes_merged, i_sectors_written, i_writetime, 
-        i_current_io, i_iotime,i_totaliotime};
+		i_reads_completed, i_reads_merged, i_sectors_read, i_readtime,
+		i_writes_completed, i_writes_merged, i_sectors_written, i_writetime,
+		i_current_io, i_iotime,i_totaliotime};
 
 int get_proctab(FuncCallContext *, char **);
 int get_cputime(char **);
@@ -1074,105 +1074,105 @@ get_memusage(char **values)
 
 Datum pg_diskusage(PG_FUNCTION_ARGS)
 {
-    ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
-    MemoryContext per_query_ctx;
-    MemoryContext oldcontext;
-    TupleDesc   tupleDesc;
-    Tuplestorestate *tupleStore;
+	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
+	MemoryContext per_query_ctx;
+	MemoryContext oldcontext;
+	TupleDesc tupleDesc;
+	Tuplestorestate *tupleStore;
 
-    Datum       values[14];
-    bool        nulls[14];
+	Datum values[14];
+	bool nulls[14];
 
-    char        device_name[4096];
-    struct statfs sb;
-    FILE       *fd;
-    int         ret;
+	char device_name[4096];
+	struct statfs sb;
+	FILE *fd;
+	int ret;
 
-    int         major = 0;
-    int         minor = 0;
-    int64       reads_completed = 0;
-    int64       reads_merged = 0;
-    int64       sectors_read = 0;
-    int64       readtime = 0;
-    int64       writes_completed = 0;
-    int64       writes_merged = 0;
-    int64       sectors_written = 0;
-    int64       writetime = 0;
-    int64       current_io = 0;
-    int64       iotime = 0;
-    int64       totaliotime = 0;
+	int major = 0;
+	int minor = 0;
+	int64 reads_completed = 0;
+	int64 reads_merged = 0;
+	int64 sectors_read = 0;
+	int64 readtime = 0;
+	int64 writes_completed = 0;
+	int64 writes_merged = 0;
+	int64 sectors_written = 0;
+	int64 writetime = 0;
+	int64 current_io = 0;
+	int64 iotime = 0;
+	int64 totaliotime = 0;
 
-    elog(DEBUG5, "pg_diskusage: Entering stored function.");
+	elog(DEBUG5, "pg_diskusage: Entering stored function.");
 
-    if (rsinfo == NULL || !IsA(rsinfo, ReturnSetInfo))
-        ereport(ERROR,
-                (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                 errmsg
-                 ("set-valued function called in context that cannot accept a set")));
-    if (!(rsinfo->allowedModes & SFRM_Materialize))
-        ereport(ERROR,
-                (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                 errmsg("materialize mode required, but it is not "
-                        "allowed in this context")));
+	if (rsinfo == NULL || !IsA(rsinfo, ReturnSetInfo))
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg
+				 ("set-valued function called in context that cannot accept a set")));
+	if (!(rsinfo->allowedModes & SFRM_Materialize))
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("materialize mode required, but it is not "
+						"allowed in this context")));
 
-    per_query_ctx = rsinfo->econtext->ecxt_per_query_memory;
-    oldcontext = MemoryContextSwitchTo(per_query_ctx);
+	per_query_ctx = rsinfo->econtext->ecxt_per_query_memory;
+	oldcontext = MemoryContextSwitchTo(per_query_ctx);
 
-    /*
-       Build a tuple descriptor for our result type 
-     */
-    if (get_call_result_type(fcinfo, NULL, &tupleDesc) != TYPEFUNC_COMPOSITE)
-        elog(ERROR, "return type must be a row type");
+	/*
+	 * Build a tuple descriptor for our result type
+	 */
+	if (get_call_result_type(fcinfo, NULL, &tupleDesc) != TYPEFUNC_COMPOSITE)
+		elog(ERROR, "return type must be a row type");
 
-    tupleStore = tuplestore_begin_heap(true, false, work_mem);
-    rsinfo->returnMode = SFRM_Materialize;
-    rsinfo->setResult = tupleStore;
-    rsinfo->setDesc = tupleDesc;
+	tupleStore = tuplestore_begin_heap(true, false, work_mem);
+	rsinfo->returnMode = SFRM_Materialize;
+	rsinfo->setResult = tupleStore;
+	rsinfo->setDesc = tupleDesc;
 
-    MemoryContextSwitchTo(oldcontext);
+	MemoryContextSwitchTo(oldcontext);
 
-    memset(nulls, 0, sizeof(nulls));
-    memset(values, 0, sizeof(values));
+	memset(nulls, 0, sizeof(nulls));
+	memset(values, 0, sizeof(values));
 
 #ifdef __linux__
-    if (statfs("/proc", &sb) < 0 || sb.f_type != PROC_SUPER_MAGIC)
-      {
-          elog(ERROR, "proc filesystem not mounted on /proc\n");
-          return (Datum) 0;
-      }
-    if ((fd = AllocateFile("/proc/diskstats", PG_BINARY_R)) == NULL)
-      {
-          elog(ERROR, "File not found: '/proc/diskstats'");
-          return (Datum) 0;
-      }
+	if (statfs("/proc", &sb) < 0 || sb.f_type != PROC_SUPER_MAGIC)
+	{
+		elog(ERROR, "proc filesystem not mounted on /proc\n");
+		return (Datum) 0;
+	}
+	if ((fd = AllocateFile("/proc/diskstats", PG_BINARY_R)) == NULL)
+	{
+		elog(ERROR, "File not found: '/proc/diskstats'");
+		return (Datum) 0;
+	}
 
-    while ((ret =
-            fscanf(fd, "%d %d %s %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu",
-                   &major, &minor, device_name, &reads_completed,
-                   &reads_merged, &sectors_read, &readtime, &writes_completed,
-                   &writes_merged, &sectors_written, &writetime, &current_io,
-                   &iotime, &totaliotime)) != EOF)
-      {
-          values[i_major] = Int32GetDatum(major);
-          values[i_minor] = Int32GetDatum(minor);
-          values[i_devname] = CStringGetTextDatum(device_name);
-          values[i_reads_completed] = Int64GetDatumFast(reads_completed);
-          values[i_reads_merged] = Int64GetDatumFast(reads_merged);
-          values[i_sectors_read] = Int64GetDatumFast(sectors_read);
-          values[i_readtime] = Int64GetDatumFast(readtime);
-          values[i_writes_completed] = Int64GetDatumFast(writes_completed);
-          values[i_writes_merged] = Int64GetDatumFast(writes_merged);
-          values[i_sectors_written] = Int64GetDatumFast(sectors_written);
-          values[i_writetime] = Int64GetDatumFast(writetime);
-          values[i_current_io] = Int64GetDatumFast(current_io);
-          values[i_iotime] = Int64GetDatumFast(iotime);
-          values[i_totaliotime] = Int64GetDatumFast(totaliotime);
-          tuplestore_putvalues(tupleStore, tupleDesc, values, nulls);                       
-      }
-    FreeFile(fd);
-#endif                          /* __linux */
+	while ((ret =
+			fscanf(fd, "%d %d %s %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu",
+					&major, &minor, device_name, &reads_completed,
+					&reads_merged, &sectors_read, &readtime, &writes_completed,
+					&writes_merged, &sectors_written, &writetime, &current_io,
+					&iotime, &totaliotime)) != EOF)
+	{
+		values[i_major] = Int32GetDatum(major);
+		values[i_minor] = Int32GetDatum(minor);
+		values[i_devname] = CStringGetTextDatum(device_name);
+		values[i_reads_completed] = Int64GetDatumFast(reads_completed);
+		values[i_reads_merged] = Int64GetDatumFast(reads_merged);
+		values[i_sectors_read] = Int64GetDatumFast(sectors_read);
+		values[i_readtime] = Int64GetDatumFast(readtime);
+		values[i_writes_completed] = Int64GetDatumFast(writes_completed);
+		values[i_writes_merged] = Int64GetDatumFast(writes_merged);
+		values[i_sectors_written] = Int64GetDatumFast(sectors_written);
+		values[i_writetime] = Int64GetDatumFast(writetime);
+		values[i_current_io] = Int64GetDatumFast(current_io);
+		values[i_iotime] = Int64GetDatumFast(iotime);
+		values[i_totaliotime] = Int64GetDatumFast(totaliotime);
+		tuplestore_putvalues(tupleStore, tupleDesc, values, nulls);
+	}
+	FreeFile(fd);
+#endif /* __linux */
 
-    tuplestore_donestoring(tupleStore);
+	tuplestore_donestoring(tupleStore);
 
-    return (Datum) 0;
+	return (Datum) 0;
 }
