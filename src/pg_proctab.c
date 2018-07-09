@@ -134,8 +134,14 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 
 			/* total number of tuples to be returned */
 			funcctx->max_calls = SPI_processed;
-			elog(DEBUG5, "pg_proctab: %d process(es) in pg_stat_activity.",
+
+#if (PG_VERSION_NUM >= 90600)
+			elog(DEBUG5, "pg_proctab: %lu process(es) in pg_stat_activity.",
 					funcctx->max_calls);
+#else
+			elog(DEBUG5, "pg_proctab: %lu process(es) in pg_stat_activity.",
+					funcctx->max_calls);
+#endif
 			funcctx->user_fctx = MemoryContextAlloc(
 					funcctx->multi_call_memory_ctx, sizeof(int32) *
 					funcctx->max_calls);
@@ -274,8 +280,13 @@ get_proctab(FuncCallContext *funcctx, char **values)
 
 	ppid = (int32 *) funcctx->user_fctx;
 	pid = ppid[funcctx->call_cntr];
+#if (PG_VERSION_NUM >= 90600)
+	elog(DEBUG5, "pg_proctab: accessing process table for pid[%lu] %d.",
+				funcctx->call_cntr, pid);
+#else
 	elog(DEBUG5, "pg_proctab: accessing process table for pid[%d] %d.",
 				funcctx->call_cntr, pid);
+#endif
 
 	/* Get the full command line information. */
 	snprintf(buffer, sizeof(buffer) - 1, "%s/%d/cmdline", PROCFS, pid);
