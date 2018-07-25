@@ -6,7 +6,7 @@ use warnings;
 use Number::Bytes::Human qw(format_bytes);
 use Getopt::Long;
 
-use Data::Dumper::Simple;
+use Data::Dumper;
 $Data::Dumper::Indent	= 1;
 
 my ($db, $list, $pid, $snap_1, $snap_2);
