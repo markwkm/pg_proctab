@@ -1,5 +1,5 @@
 # pg_proctab extension
 comment = 'Access operating system process table'
-default_version = '0.0.6'
+default_version = '0.0.7'
 module_pathname = '$libdir/pg_proctab'
 relocatable = true
