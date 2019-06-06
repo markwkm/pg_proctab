@@ -139,7 +139,7 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 			elog(DEBUG5, "pg_proctab: %lu process(es) in pg_stat_activity.",
 					funcctx->max_calls);
 #else
-			elog(DEBUG5, "pg_proctab: %lu process(es) in pg_stat_activity.",
+			elog(DEBUG5, "pg_proctab: %u process(es) in pg_stat_activity.",
 					funcctx->max_calls);
 #endif
 			funcctx->user_fctx = MemoryContextAlloc(
