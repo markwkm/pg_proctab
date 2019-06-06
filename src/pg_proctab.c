@@ -139,7 +139,7 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 			elog(DEBUG5, "pg_proctab: %lu process(es) in pg_stat_activity.",
 					funcctx->max_calls);
 #else
-			elog(DEBUG5, "pg_proctab: %u process(es) in pg_stat_activity.",
+			elog(DEBUG5, "pg_proctab: %d process(es) in pg_stat_activity.",
 					funcctx->max_calls);
 #endif
 			funcctx->user_fctx = MemoryContextAlloc(
@@ -1001,13 +1001,11 @@ get_memusage(char **values)
 	buffer[len] = '\0';
 	elog(DEBUG5, "pg_memusage: %s", buffer);
 
-	p = buffer - 1;
-
 	values[i_memshared][0] = '0';
 	values[i_memshared][1] = '\0';
 
-	while (p != NULL) {
-		++p;
+	p = buffer;
+	while (*p != '\0') {
 		if (strncmp(p, "Buffers:", 8) == 0)
 		{
 			SKIP_TOKEN(p);
@@ -1060,6 +1058,7 @@ get_memusage(char **values)
 			elog(DEBUG5, "pg_memusage: SwapTotal = %lu", swaptotal);
 		}
 		p = strchr(p, '\n');
+		++p;
 	}
 #endif /* __linux__ */
 
