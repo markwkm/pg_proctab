@@ -1180,7 +1180,7 @@ Datum pg_diskusage(PG_FUNCTION_ARGS)
 		tuplestore_putvalues(tupleStore, tupleDesc, values, nulls);
 	}
 	FreeFile(fd);
-#endif /* __linux */
+#endif /* __linux__ */
 
 	tuplestore_donestoring(tupleStore);
 
