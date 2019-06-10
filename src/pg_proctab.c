@@ -47,6 +47,8 @@
 		value[len] = '\0';
 #endif /* __linux__ */
 
+#define pagetok(x)	((x) * sysconf(_SC_PAGESIZE) >> 10)
+
 enum proctab {i_pid, i_comm, i_fullcomm, i_state, i_ppid, i_pgrp, i_session,
 		i_tty_nr, i_tpgid, i_flags, i_minflt, i_cminflt, i_majflt, i_cmajflt,
 		i_utime, i_stime, i_cutime, i_cstime, i_priority, i_nice,
@@ -430,6 +432,9 @@ get_proctab(FuncCallContext *funcctx, char **values)
 
 	/* rss */
 	GET_NEXT_VALUE(p, q, values[i_rss], length, "rss not found", ' ');
+	/* Convert rss into bytes. */
+	snprintf(values[i_rss], sizeof(values[i_rss]) -1, "%lld",
+			pagetok(atoll(values[i_rss])));
 
 	SKIP_TOKEN(p);			/* skip rlim */
 	SKIP_TOKEN(p);			/* skip startcode */
