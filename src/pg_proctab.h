@@ -2,8 +2,8 @@
  * Copyright (C) 2008 Mark Wong
  */
 
-#ifndef _PG_COMMON_H_
-#define _PG_COMMON_H_
+#ifndef _PG_PROCTAB_H_
+#define _PG_PROCTAB_H_
 
 #ifdef PG_MODULE_MAGIC
 PG_MODULE_MAGIC;
@@ -42,4 +42,4 @@ PG_MODULE_MAGIC;
 			p++;
 #endif /* __linux__ */
 
-#endif /* _PG_COMMON_H_ */
+#endif /* _PG_PROCTAB_H_ */
