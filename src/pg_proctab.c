@@ -326,8 +326,7 @@ get_proctab(FuncCallContext *funcctx, char **values)
 		{
 			values[i_username] = (char *) palloc((strlen(pwd->pw_name) +
 					1) * sizeof(char));
-			strncpy(values[i_username], pwd->pw_name,
-					sizeof(values[i_username]) - 1);
+			strcpy(values[i_username], pwd->pw_name);
 		}
 	}
 
