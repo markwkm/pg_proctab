@@ -11,7 +11,11 @@
 #include "utils/tuplestore.h"
 #include "storage/fd.h"
 #include "utils/builtins.h"
-#include <sys/vfs.h>
+#ifndef __FreeBSD__
+  #include <sys/vfs.h>
+#else
+  #include <sys/mount.h>
+#endif
 #include <unistd.h>
 #include <sys/stat.h>
 #include <fcntl.h>
