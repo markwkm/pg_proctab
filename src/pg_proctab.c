@@ -67,7 +67,9 @@ enum memusage {i_memused, i_memfree, i_memshared, i_membuffers, i_memcached,
 enum diskusage {i_major, i_minor, i_devname,
 		i_reads_completed, i_reads_merged, i_sectors_read, i_readtime,
 		i_writes_completed, i_writes_merged, i_sectors_written, i_writetime,
-		i_current_io, i_iotime,i_totaliotime};
+		i_current_io, i_iotime, i_totaliotime,
+		i_discards_completed, i_discards_merged, i_sectors_discarded, i_discardtime,
+		i_flushes_completed, i_flushtime};
 
 int get_proctab(FuncCallContext *, char **);
 int get_cputime(char **);
@@ -1098,8 +1100,8 @@ Datum pg_diskusage(PG_FUNCTION_ARGS)
 	TupleDesc tupleDesc;
 	Tuplestorestate *tupleStore;
 
-	Datum values[14];
-	bool nulls[14];
+	Datum values[20];
+	bool nulls[20];
 
 	char device_name[4096];
 	struct statfs sb;
@@ -1108,17 +1110,28 @@ Datum pg_diskusage(PG_FUNCTION_ARGS)
 
 	int major = 0;
 	int minor = 0;
+
 	int64 reads_completed = 0;
 	int64 reads_merged = 0;
 	int64 sectors_read = 0;
 	int64 readtime = 0;
+
 	int64 writes_completed = 0;
 	int64 writes_merged = 0;
 	int64 sectors_written = 0;
 	int64 writetime = 0;
+
 	int64 current_io = 0;
 	int64 iotime = 0;
 	int64 totaliotime = 0;
+
+	int64 discards_completed = 0;
+	int64 discards_merged = 0;
+	int64 sectors_discarded = 0;
+	int64 discardtime = 0;
+
+	int64 flushes_completed = 0;
+	int64 flushtime = 0;
 
 	elog(DEBUG5, "pg_diskusage: Entering stored function.");
 
@@ -1164,27 +1177,58 @@ Datum pg_diskusage(PG_FUNCTION_ARGS)
 		return (Datum) 0;
 	}
 
+#define HS "%*[ \t]"
+
 	while ((ret =
-			fscanf(fd, "%d %d %s %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu",
-					&major, &minor, device_name, &reads_completed,
-					&reads_merged, &sectors_read, &readtime, &writes_completed,
-					&writes_merged, &sectors_written, &writetime, &current_io,
-					&iotime, &totaliotime)) != EOF)
+			fscanf(fd, (
+					   "%d" HS "%d" HS "%s"
+					   HS "%lu" HS "%lu" HS "%lu" HS "%lu"
+					   HS "%lu" HS "%lu" HS "%lu" HS "%lu"
+					   HS "%lu" HS "%lu" HS "%lu"
+					   HS "%lu" HS "%lu" HS "%lu" HS "%lu"
+					   HS "%lu" HS "%lu"
+					   ),
+				   &major, &minor, device_name,
+				   &reads_completed, &reads_merged, &sectors_read, &readtime,
+				   &writes_completed, &writes_merged, &sectors_written, &writetime,
+				   &current_io, &iotime, &totaliotime,
+				   &discards_completed, &discards_merged, &sectors_discarded, &discardtime,
+				   &flushes_completed, &flushtime
+				)) > 0)
 	{
+		/*
+		 * Consume additional data on the line, so it isn't
+		 * interpreted as part of the next (newline-delimited)
+		 * diskstats record.
+		 */
+		ret = fscanf(fd, "%*[^\n]");
+
 		values[i_major] = Int32GetDatum(major);
 		values[i_minor] = Int32GetDatum(minor);
 		values[i_devname] = CStringGetTextDatum(device_name);
+
 		values[i_reads_completed] = Int64GetDatumFast(reads_completed);
 		values[i_reads_merged] = Int64GetDatumFast(reads_merged);
 		values[i_sectors_read] = Int64GetDatumFast(sectors_read);
 		values[i_readtime] = Int64GetDatumFast(readtime);
+
 		values[i_writes_completed] = Int64GetDatumFast(writes_completed);
 		values[i_writes_merged] = Int64GetDatumFast(writes_merged);
 		values[i_sectors_written] = Int64GetDatumFast(sectors_written);
 		values[i_writetime] = Int64GetDatumFast(writetime);
+
 		values[i_current_io] = Int64GetDatumFast(current_io);
 		values[i_iotime] = Int64GetDatumFast(iotime);
 		values[i_totaliotime] = Int64GetDatumFast(totaliotime);
+
+		values[i_discards_completed] = discards_completed;
+		values[i_discards_merged] = discards_merged;
+		values[i_sectors_discarded] = sectors_discarded;
+		values[i_discardtime] = discardtime;
+
+		values[i_flushes_completed] = flushes_completed;
+		values[i_flushtime] = flushtime;
+
 		tuplestore_putvalues(tupleStore, tupleDesc, values, nulls);
 	}
 	FreeFile(fd);

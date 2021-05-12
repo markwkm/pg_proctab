@@ -89,7 +89,14 @@ CREATE OR REPLACE FUNCTION pg_diskusage (
         OUT writetime bigint,
         OUT current_io bigint,
         OUT iotime bigint,
-        OUT totaliotime bigint)
+        OUT totaliotime bigint,
+        OUT discards_completed bigint,
+        OUT discards_merged bigint,
+        OUT sectors_discarded bigint,
+        OUT discardtime bigint,
+        OUT flushes_completed bigint,
+        OUT flushtime bigint
+)
 RETURNS SETOF record
 AS 'MODULE_PATHNAME', 'pg_diskusage'
 LANGUAGE C IMMUTABLE STRICT;
