@@ -303,7 +303,7 @@ get_proctab(FuncCallContext *funcctx, char **values)
 	fd = open(buffer, O_RDONLY);
 	if (fd == -1)
 	{
-		elog(ERROR, "'%s' not found", buffer);
+		elog(WARNING, "'%s' no longer exists", buffer);
 		values[i_fullcomm] = NULL;
 	}
 	else
