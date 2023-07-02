@@ -1,0 +1,8 @@
+Containerfile
+.containerignore
+.git
+tools
+
+*.bc
+*.o
+*.so
