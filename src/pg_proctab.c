@@ -138,7 +138,7 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 			int32 *ppid;
 
 			int i;
-			TupleDesc tupdesc;
+			TupleDesc tupdesc2;
 			SPITupleTable *tuptable;
 			HeapTuple tuple;
 
@@ -157,13 +157,13 @@ Datum pg_proctab(PG_FUNCTION_ARGS)
 					funcctx->max_calls);
 			ppid = (int32 *) funcctx->user_fctx;
 
-			tupdesc = SPI_tuptable->tupdesc;
+			tupdesc2 = SPI_tuptable->tupdesc;
 			tuptable = SPI_tuptable;
 
 			for (i = 0; i < funcctx->max_calls; i++)
 			{
 				tuple = tuptable->vals[i];
-				ppid[i] = atoi(SPI_getvalue(tuple, tupdesc, 1));
+				ppid[i] = atoi(SPI_getvalue(tuple, tupdesc2, 1));
 			}
 		}
 		else
