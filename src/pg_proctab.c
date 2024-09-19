@@ -1236,7 +1236,5 @@ Datum pg_diskusage(PG_FUNCTION_ARGS)
 	FreeFile(fd);
 #endif /* __linux__ */
 
-	tuplestore_donestoring(tupleStore);
-
 	return (Datum) 0;
 }
