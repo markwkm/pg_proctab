@@ -2,7 +2,7 @@
    "name": "pg_proctab",
    "abstract": "Access operating system process tables from PostgreSQL",
    "description": "pg_proctab is a collection of stored functions that can access the operating systems process table so that system statitics can be queried through the database.",
-   "version": "0.0.10",
+   "version": "0.0.12",
    "maintainer": "Mark Wong",
    "license": {
       "PostgreSQL": "http://www.postgresql.org/about/licence"
@@ -11,7 +11,7 @@
       "pg_proctab": {
          "abstract": "Operating system process table",
          "file": "sql/pg_proctab.sql",
-         "version": "0.0.10"
+         "version": "0.0.12"
       }
    },
    "resources": {
