@@ -16,8 +16,8 @@
    },
    "resources": {
       "repository": {
-        "url":  "git://git.postgresql.org/git/pg_proctab.git",
-        "type": "git"
+        "url":  "https://gitlab.com/pg_proctab/pg_proctab.git",
+        "type": "https"
       }
    },
    "release_status": "testing",
