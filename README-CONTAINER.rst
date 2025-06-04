@@ -12,7 +12,7 @@ Create the container for PostgreSQL 15::
 Start PostgreSQL in the container, exposing port 5432::
 
     podman run -p 5432:5432 --name some-postgres \
-            -e POSTGRES_PASSWORD=mysecretpassword -d pg_proctab:15
+            -e POSTGRES_PASSWORD=pass -d pg_proctab:15
 
 Connect to PostgreSQL and install **pg_proctab**::
 
