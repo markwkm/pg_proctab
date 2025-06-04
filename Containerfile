@@ -13,4 +13,5 @@ RUN apt-get -qq -y update && \
 
 COPY . /usr/local/src/pg_proctab
 WORKDIR /usr/local/src/pg_proctab
+ENV USE_PGXS=1
 RUN make install
