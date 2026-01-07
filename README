@@ -1,0 +1,12 @@
+pg_proctab is a PostgreSQL extension that allows PostgreSQL users to access
+parts of the Linux operating systems process table through the database.
+
+This allows SQL queries to be constructed to access:
+
+* System average load
+* Memory usage
+* Processor usage
+* Memory, I/O and processor statistics per process
+
+
+SQL statements can additionally be written to track usage per query.
