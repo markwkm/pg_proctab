@@ -23,6 +23,7 @@
 #include <fcntl.h>
 #include <sys/param.h>
 #include <executor/spi.h>
+#include <pwd.h>
 #include "pg_proctab.h"
 
 #define FULLCOMM_LEN 1024
